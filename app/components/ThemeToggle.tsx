@@ -4,7 +4,7 @@ import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 
 /**
- * Switches light / dark; avoids hydration mismatch by rendering a stable placeholder until mounted.
+ * Inverts light ↔ dark appearance; avoids hydration mismatch until mounted.
  */
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -36,8 +36,8 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={() => setTheme(dark ? 'light' : 'dark')}
-      title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title="Invert appearance (light and dark)"
+      aria-label="Invert appearance"
       style={{
         padding: '5px 10px',
         borderRadius: 2,
@@ -52,7 +52,7 @@ export function ThemeToggle() {
         transition: 'border-color 0.12s ease, background 0.12s ease, color 0.12s ease',
       }}
     >
-      {dark ? 'Light' : 'Dark'}
+      Invert
     </button>
   );
 }
