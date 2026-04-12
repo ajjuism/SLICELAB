@@ -18,12 +18,13 @@ function HelpIcon() {
   );
 }
 
-type HelpSectionId = 'overview' | 'slice' | 'loop' | 'files';
+type HelpSectionId = 'overview' | 'slice' | 'loop' | 'grain' | 'files';
 
 const NAV_ITEMS: { id: HelpSectionId; title: string; desc: string }[] = [
   { id: 'overview', title: 'Overview', desc: 'Layout & workflow' },
   { id: 'slice', title: 'Slice workspace', desc: 'Detect & export' },
-  { id: 'loop', title: 'Loop builder', desc: 'Sequencer & layers' },
+  { id: 'loop', title: 'Loops', desc: 'Sequencer & layers' },
+  { id: 'grain', title: 'Grains', desc: 'Cloud, space & EQ' },
   { id: 'files', title: 'Files & privacy', desc: 'Formats & safety' },
 ];
 
@@ -41,9 +42,9 @@ function PanelOverview() {
         <h4>Where things live</h4>
         <ul className="help-checks">
           <li>
-            <strong>Top row</strong> — See which file is loaded, switch between <strong>Slices</strong> (waveform and
-            sample list) and <strong>Loop builder</strong> (only available after you have slices). When slices exist,
-            use <strong>Download zip</strong> to save all WAVs in one go.
+            <strong>Top row</strong> — See which file is loaded, switch between <strong>Slices</strong>,{' '}
+            <strong>Loops</strong>, and <strong>Grains</strong> (texture player; all need slices first). When
+            slices exist, use <strong>Download zip</strong> to save all WAVs in one go.
           </li>
           <li>
             <strong>Left column</strong> — Load and replace audio, set how slices are detected (or draw them in manual
@@ -54,7 +55,8 @@ function PanelOverview() {
           <li>
             <strong>Main area</strong> — The waveform shows boundaries; in manual mode before you apply, look for region
             markers <strong>S</strong> / <strong>E</strong> and any cuts you added. Underneath you either preview each
-            slice as cards, or build a loop pattern if you opened the Loop builder tab.
+            slice as cards, build a loop on the <strong>Loops</strong> tab, or open <strong>Grains</strong> for
+            granular playback and effects.
           </li>
         </ul>
       </div>
@@ -68,8 +70,12 @@ function PanelOverview() {
             redo → <strong>Download zip</strong> when ready.
           </li>
           <li>
-            To try patterns: open <strong>Loop builder</strong>, choose which slices are in the pool, fill steps, press{' '}
+            To try patterns: open <strong>Loops</strong>, choose which slices are in the pool, fill steps, press{' '}
             <strong>Play</strong>, then <strong>Download WAV</strong> if you want that bar as a file.
+          </li>
+          <li>
+            For sustained textures: open <strong>Grains</strong>, start the grain cloud, tweak Cloud and Space, use the
+            parametric EQ if you like, then <strong>Record to WAV</strong> to capture what you hear.
           </li>
         </ol>
       </div>
@@ -166,9 +172,9 @@ function PanelSlice() {
 function PanelLoop() {
   return (
     <div id="help-panel-loop" role="tabpanel" aria-labelledby="help-nav-loop">
-      <h3 className="help-pane-title">Loop builder</h3>
+      <h3 className="help-pane-title">Loops</h3>
       <p className="help-lead">
-        Once slices exist, open the <strong>Loop builder</strong> tab to sequence them on a bar-long grid. Multiple layers
+        Once slices exist, open the <strong>Loops</strong> tab to sequence them on a bar-long grid. Multiple layers
         stack hits on the same step; swing and meter shape the feel.
       </p>
 
@@ -180,8 +186,9 @@ function PanelLoop() {
             <strong>time signature</strong> (e.g. 4/4 = four quarter-note beats per bar; 3/4 = three).
           </li>
           <li>
-            <strong>Steps per bar</strong> — <strong>8</strong>, <strong>16</strong>, or <strong>32</strong> steps.
-            Higher resolution = finer rhythm grid (cells get smaller; row may scroll horizontally).
+            <strong>Steps per bar</strong> — <strong>8</strong>, <strong>16</strong>, or <strong>32</strong> steps divide
+            one bar into that many equal slices. More steps means a finer grid and faster step timing at the same BPM;
+            the pattern is still one bar long. To slow the loop, lower BPM—not step count.
           </li>
           <li>
             <strong>Swing</strong> — Delays odd-numbered steps slightly for a shuffle feel (0 = straight).
@@ -248,6 +255,102 @@ function PanelLoop() {
   );
 }
 
+function PanelGrain() {
+  return (
+    <div id="help-panel-grain" role="tabpanel" aria-labelledby="help-nav-grain">
+      <h3 className="help-pane-title">Grains</h3>
+      <p className="help-lead">
+        Granular playback across your slice pool: overlapping grains with jitter, optional pitch spread, then delay and
+        reverb. Needs analyzed slices. Audio runs in the browser; use <strong>Stop</strong> or leave the tab to silence.
+      </p>
+
+      <div className="help-block">
+        <h4>Cloud</h4>
+        <ul>
+          <li>
+            <strong>Density</strong> — Average grains per second.
+          </li>
+          <li>
+            <strong>Grain</strong> — Grain length in milliseconds (longer tends toward smoother beds).
+          </li>
+          <li>
+            <strong>Focus</strong> — Bias along the slice-pool timeline (paired with the Output focus scrubber).
+          </li>
+          <li>
+            <strong>Jitter</strong> — Random drift around the focus position.
+          </li>
+          <li>
+            <strong>Pitch</strong> — Random pitch spread in semitones.
+          </li>
+          <li>
+            <strong>Mix</strong> — Grain bus level into the effects chain.
+          </li>
+          <li>
+            <strong>Gain</strong> — Master output after effects.
+          </li>
+        </ul>
+        <p className="help-muted" style={{ marginTop: 10, marginBottom: 0 }}>
+          Drag knobs vertically to change values.
+        </p>
+      </div>
+
+      <div className="help-block">
+        <h4>Space</h4>
+        <ul>
+          <li>
+            <strong>Time</strong> — Delay time.
+          </li>
+          <li>
+            <strong>Fdbk</strong> — Delay feedback.
+          </li>
+          <li>
+            <strong>Delay</strong> — Delay wet amount.
+          </li>
+          <li>
+            <strong>Verb</strong> — Reverb wet amount.
+          </li>
+          <li>
+            <strong>Room</strong> — Reverb tail length (room size).
+          </li>
+        </ul>
+      </div>
+
+      <div className="help-block">
+        <h4>Output</h4>
+        <ul>
+          <li>
+            <strong>Scope</strong> — Waveform and log spectrum of the processed signal while the cloud is playing. Before
+            play, a short message explains that you need to start the grain cloud.
+          </li>
+          <li>
+            <strong>Focus</strong> — Scrub where in the pool grains are drawn from (mirrors Cloud Focus).
+          </li>
+          <li>
+            <strong>Start grain cloud</strong> / <strong>Stop</strong> — Runs or stops engine playback.
+          </li>
+          <li>
+            <strong>Record to WAV</strong> — Captures processed stereo audio (up to about 90 seconds); tap again to save a
+            WAV download.
+          </li>
+        </ul>
+      </div>
+
+      <div className="help-block">
+        <h4>Parametric EQ</h4>
+        <p>
+          Seven peaking bands (±12 dB) shape the signal after delay and reverb. The curve shows the combined cascade in
+          processing order. <strong>Presets</strong> are one-click starting shapes; use <strong>Bypass</strong> to hear the
+          chain with EQ flat while keeping your edits, and <strong>Copy</strong> / <strong>Paste</strong> to move gain
+          values as text.
+        </p>
+        <p className="help-muted" style={{ marginTop: 10, marginBottom: 0 }}>
+          Note: EQ bands are peaking filters only; preset names like “Tight lows” approximate shelves.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PanelFiles() {
   return (
     <div id="help-panel-files" role="tabpanel" aria-labelledby="help-nav-files">
@@ -273,6 +376,10 @@ function PanelFiles() {
           </li>
           <li>
             <strong>Loop WAV</strong> — One bar of the mixed loop as a WAV file (same channel layout as your source buffer).
+          </li>
+          <li>
+            <strong>Grain recording</strong> — From the Grains tab, <strong>Record to WAV</strong> saves processed output
+            (cloud + space + EQ) as a stereo WAV, up to the app’s recording limit.
           </li>
         </ul>
       </div>
@@ -387,8 +494,8 @@ export function HelpInstructions() {
                     <div style={{ minWidth: 0 }}>
                       <h2 id="help-instructions-title">How to use SliceLab</h2>
                       <p id="help-instructions-desc" className="help-instructions-subtitle">
-                        Pick a topic to learn how to slice audio, use the loop sequencer, and export files. Sections are
-                        listed next to this text.
+                        Pick a topic for slicing, the loop sequencer, granular grains (texture + EQ), and exports.
+                        Sections are listed next to this text.
                       </p>
                     </div>
                     <button
@@ -429,6 +536,7 @@ export function HelpInstructions() {
                     {section === 'overview' && <PanelOverview />}
                     {section === 'slice' && <PanelSlice />}
                     {section === 'loop' && <PanelLoop />}
+                    {section === 'grain' && <PanelGrain />}
                     {section === 'files' && <PanelFiles />}
                   </div>
                 </div>

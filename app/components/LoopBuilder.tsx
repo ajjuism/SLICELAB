@@ -399,7 +399,10 @@ export function LoopBuilder({
           </button>
           <label
             style={meterLabelStyle}
-            title="How many steps divide one bar (scroll the pattern row when needed)."
+            title={
+              'Steps divide one bar (BPM × meter) into equal slices. More steps → shorter time per step and a faster step rate; bar length and BPM stay the same. ' +
+              'To slow the loop, lower BPM. (Classic one-bar step sequencer—not “more steps = longer pattern.”)'
+            }
           >
             Steps
             <select
@@ -482,7 +485,7 @@ export function LoopBuilder({
         maxWidth: '100%',
       }}>
         Layers stack on the same step; step menus use the kit only. Swing offsets odd steps. Each layer has its own hit rate for Random / Randomize all, and its own pitch (semitones).
-        Meter sets bar length; choose 8, 16, or 32 steps per bar. Uncheck “Trim to step” to let long samples ring out across the bar.
+        Meter sets bar length. Steps per bar is grid resolution: 8 / 16 / 32 divisions of the same bar—more steps means finer slices (faster step timing), not a longer loop. Uncheck “Trim to step” to let long samples ring out across the bar.
       </p>
 
       {slices.length === 0 ? (

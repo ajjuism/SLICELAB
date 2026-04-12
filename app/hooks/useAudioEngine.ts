@@ -68,11 +68,26 @@ export function useAudioEngine() {
   const [isLoading, setIsLoading] = useState(false);
 
   const getCtx = useCallback(() => {
+    if (!audioCtxRef.current && typeof window !== 'undefined') {
+      const Ctor =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (Ctor) {
+        audioCtxRef.current = new Ctor();
+      }
+    }
     if (!audioCtxRef.current) {
       audioCtxRef.current = new AudioContext();
     }
     return audioCtxRef.current;
   }, []);
+
+  /** Shared AudioContext; resumes if suspended (required after user gesture for Grain Mode, etc.). */
+  const ensureAudioContext = useCallback(async () => {
+    const ctx = getCtx();
+    if (ctx.state === 'suspended') await ctx.resume();
+    return ctx;
+  }, [getCtx]);
 
   const loadFile = useCallback(async (file: File) => {
     setIsLoading(true);
@@ -82,9 +97,13 @@ export function useAudioEngine() {
 
     try {
       const ctx = getCtx();
+      // Safari: start unlock in the same synchronous turn as drop/picker; await again before decode.
+      if (ctx.state === 'suspended') void ctx.resume();
       if (ctx.state === 'suspended') await ctx.resume();
 
       const arr = await file.arrayBuffer();
+      if (ctx.state === 'suspended') await ctx.resume();
+
       const buffer = await ctx.decodeAudioData(arr);
       audioBufferRef.current = buffer;
 
@@ -304,7 +323,7 @@ export function useAudioEngine() {
     return () => cancelAnimationFrame(previewRafRef.current);
   }, [playingIndex]);
 
-  const playLoop = useCallback((
+  const playLoop = useCallback(async (
     layers: (number | null)[][],
     layerMutes: boolean[],
     layerPitchSemitones: number[],
@@ -316,7 +335,11 @@ export function useAudioEngine() {
   ) => {
     if (!audioBufferRef.current) return;
     const ctx = getCtx();
-    if (ctx.state === 'suspended') void ctx.resume();
+    try {
+      if (ctx.state === 'suspended') await ctx.resume();
+    } catch {
+      /* Safari may reject resume without a user gesture */
+    }
 
     if (currentSourceRef.current) {
       try { currentSourceRef.current.stop(); } catch { /* ok */ }
@@ -359,7 +382,7 @@ export function useAudioEngine() {
     setLoopPlaying(true);
   }, [getCtx, slices, stopLoop]);
 
-  const downloadLoopWav = useCallback((
+  const downloadLoopWav = useCallback(async (
     layers: (number | null)[][],
     layerMutes: boolean[],
     layerPitchSemitones: number[],
@@ -371,7 +394,11 @@ export function useAudioEngine() {
   ) => {
     if (!audioBufferRef.current) return;
     const ctx = getCtx();
-    if (ctx.state === 'suspended') void ctx.resume();
+    try {
+      if (ctx.state === 'suspended') await ctx.resume();
+    } catch {
+      /* ok */
+    }
 
     const bar = buildLayeredDrumPatternBuffer(
       audioBufferRef.current,
@@ -402,8 +429,8 @@ export function useAudioEngine() {
 
   const playSlice = useCallback((slice: Slice) => {
     if (!audioBufferRef.current) return;
+    const mainBuf = audioBufferRef.current;
     const ctx = getCtx();
-    if (ctx.state === 'suspended') ctx.resume();
 
     stopLoop();
 
@@ -411,28 +438,36 @@ export function useAudioEngine() {
       try { currentSourceRef.current.stop(); } catch { /* already stopped */ }
     }
 
-    const buf = sliceToAudioBuffer(audioBufferRef.current, slice, ctx);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(ctx.destination);
+    void (async () => {
+      try {
+        if (ctx.state === 'suspended') await ctx.resume();
+      } catch {
+        /* Safari: resume must follow a user gesture — try clicking play again */
+      }
 
-    previewSliceRef.current = slice;
-    const t0 = ctx.currentTime;
-    previewStartRef.current = t0;
-    setWaveformHighlightSec({ start: slice.start, end: slice.end });
-    setWaveformPlayheadSec(slice.start);
-    src.start(t0);
+      const buf = sliceToAudioBuffer(mainBuf, slice, ctx);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
 
-    src.onended = () => setPlayingIndex(null);
-    currentSourceRef.current = src;
-    setPlayingIndex(slice.index);
+      previewSliceRef.current = slice;
+      const t0 = ctx.currentTime;
+      previewStartRef.current = t0;
+      setWaveformHighlightSec({ start: slice.start, end: slice.end });
+      setWaveformPlayheadSec(slice.start);
+      src.start(t0);
+
+      src.onended = () => setPlayingIndex(null);
+      currentSourceRef.current = src;
+      setPlayingIndex(slice.index);
+    })();
   }, [getCtx, stopLoop]);
 
   /** Play the entire loaded file (not slice extractions). Uses playingIndex -1 while active. */
   const playFullSource = useCallback(() => {
     if (!audioBufferRef.current) return;
+    const mainBuf = audioBufferRef.current;
     const ctx = getCtx();
-    if (ctx.state === 'suspended') void ctx.resume();
 
     stopLoop();
 
@@ -440,20 +475,28 @@ export function useAudioEngine() {
       try { currentSourceRef.current.stop(); } catch { /* already stopped */ }
     }
 
-    const src = ctx.createBufferSource();
-    src.buffer = audioBufferRef.current;
-    src.connect(ctx.destination);
+    void (async () => {
+      try {
+        if (ctx.state === 'suspended') await ctx.resume();
+      } catch {
+        /* ok */
+      }
 
-    previewSliceRef.current = null;
-    const t0 = ctx.currentTime;
-    previewStartRef.current = t0;
-    setWaveformHighlightSec(null);
-    setWaveformPlayheadSec(0);
-    src.start(t0);
+      const src = ctx.createBufferSource();
+      src.buffer = mainBuf;
+      src.connect(ctx.destination);
 
-    src.onended = () => setPlayingIndex(null);
-    currentSourceRef.current = src;
-    setPlayingIndex(-1);
+      previewSliceRef.current = null;
+      const t0 = ctx.currentTime;
+      previewStartRef.current = t0;
+      setWaveformHighlightSec(null);
+      setWaveformPlayheadSec(0);
+      src.start(t0);
+
+      src.onended = () => setPlayingIndex(null);
+      currentSourceRef.current = src;
+      setPlayingIndex(-1);
+    })();
   }, [getCtx, stopLoop]);
 
   const stopPlayback = useCallback(() => {
@@ -558,6 +601,7 @@ export function useAudioEngine() {
     downloadZip,
     clear,
     clearAppliedSlices,
+    ensureAudioContext,
   };
 }
 

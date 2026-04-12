@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 
-export type MainTab = 'slices' | 'loops';
+export type MainTab = 'slices' | 'loops' | 'grain';
 
 interface TopbarProps {
   fileName: string;
@@ -103,7 +103,22 @@ export function Topbar({ fileName, hasSlices, onDownload, tab, onTabChange }: To
               cursor: hasSlices ? 'pointer' : 'not-allowed',
             }}
           >
-            Loop builder
+            Loops
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'grain'}
+            onClick={() => onTabChange('grain')}
+            disabled={!hasSlices}
+            title="Granular texture from your slices"
+            style={{
+              ...tabBtn(tab === 'grain'),
+              opacity: hasSlices ? 1 : 0.45,
+              cursor: hasSlices ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Grains
           </button>
         </div>
       </div>

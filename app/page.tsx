@@ -9,6 +9,7 @@ import { Sidebar } from './components/Sidebar';
 import { Waveform } from './components/Waveform';
 import { SliceGrid } from './components/SliceGrid';
 import { LoopBuilder } from './components/LoopBuilder';
+import { GrainMode } from './components/GrainMode';
 import { StatusBar } from './components/StatusBar';
 import { HelpInstructions } from './components/HelpInstructions';
 
@@ -36,6 +37,10 @@ export default function Home() {
   useEffect(() => {
     if (engine.slices.length === 0) setTab('slices');
   }, [engine.slices.length]);
+
+  useEffect(() => {
+    if (tab === 'grain') engine.stopPlayback();
+  }, [tab, engine.stopPlayback]); // stop slice/loop preview when opening Grain (stable ref from hook)
 
   return (
     <>
@@ -137,7 +142,7 @@ export default function Home() {
               onPlayFullSource={engine.playFullSource}
               hasAudio={!!engine.audioInfo}
             />
-          ) : (
+          ) : tab === 'loops' ? (
             <LoopBuilder
               slices={engine.slices}
               loopPlaying={engine.loopPlaying}
@@ -148,6 +153,13 @@ export default function Home() {
               onStopLoop={engine.stopLoop}
               onPlaySlice={engine.playSlice}
               hasAudio={!!engine.audioInfo}
+            />
+          ) : (
+            <GrainMode
+              slices={engine.slices}
+              audioBuffer={engine.audioBuffer.current}
+              ensureAudioContext={engine.ensureAudioContext}
+              onStopOtherAudio={engine.stopPlayback}
             />
           )}
         </div>
