@@ -10,6 +10,7 @@ import { Waveform } from './components/Waveform';
 import { SliceGrid } from './components/SliceGrid';
 import { LoopBuilder } from './components/LoopBuilder';
 import { StatusBar } from './components/StatusBar';
+import { HelpInstructions } from './components/HelpInstructions';
 
 const DEFAULT_DETECTION: DetectionSettings = {
   method: 'transient',
@@ -152,6 +153,7 @@ export default function Home() {
         </div>
       </div>
       <StatusBar message={engine.status} active={engine.statusActive} />
+      <HelpInstructions />
     </div>
     <div
       className="slicelab-mobile-only"

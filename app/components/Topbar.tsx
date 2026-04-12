@@ -49,15 +49,36 @@ export function Topbar({ fileName, hasSlices, onDownload, tab, onTabChange }: To
             priority
             style={{ display: 'block', flexShrink: 0 }}
           />
-          <div style={{
-            fontFamily: "'IBM Plex Mono', monospace",
-            fontSize: 11,
-            fontWeight: 500,
-            letterSpacing: 1.5,
-            textTransform: 'uppercase' as const,
-            color: 'var(--text)',
-          }}>
-            Slice<span style={{ color: 'var(--muted)' }}>lab</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <div style={{
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 11,
+              fontWeight: 500,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase' as const,
+              color: 'var(--text)',
+            }}>
+              Slice<span style={{ color: 'var(--muted)' }}>lab</span>
+            </div>
+            <span
+              aria-label="Beta"
+              title="Beta"
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: 8,
+                fontWeight: 500,
+                letterSpacing: 0.9,
+                textTransform: 'uppercase' as const,
+                color: 'var(--muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 2,
+                padding: '2px 5px',
+                lineHeight: 1,
+                flexShrink: 0,
+              }}
+            >
+              Beta
+            </span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 4 }} role="tablist" aria-label="Workspace">

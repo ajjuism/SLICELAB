@@ -169,6 +169,274 @@ select.loop-step-select:disabled {
 }
 
 /* SliceLab is designed for desktop; show a notice on phones and small tablets */
+/* Help modal — fixed height so flex:1 on the shell gets real space (max-height alone + flex-basis 0 collapses to 0 in some engines) */
+.help-instructions-modal {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  width: min(960px, calc(100vw - 32px));
+  height: min(86vh, 800px);
+  max-height: min(92vh, 820px);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+.help-instructions-head {
+  flex: 0 0 auto;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.help-instructions-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.help-instructions-head h2 {
+  margin: 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+  color: var(--text);
+}
+.help-instructions-subtitle {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  font-family: 'IBM Plex Sans', sans-serif;
+  max-width: 42rem;
+}
+.help-instructions-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.help-instructions-close:hover {
+  border-color: var(--border2);
+  color: var(--text);
+  background: var(--panel);
+}
+.help-instructions-shell {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+.help-instructions-sidebar {
+  flex: 0 0 auto;
+  width: 180px;
+  max-width: 42%;
+  padding: 12px 10px;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.help-instructions-nav-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 0 0 4px 4px;
+}
+.help-instructions-nav-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.help-instructions-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--text);
+}
+.help-instructions-nav-btn[aria-selected='true'],
+.help-instructions-nav-btn[data-active='true'] {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+  font-weight: 500;
+}
+.help-instructions-nav-title {
+  display: block;
+  width: 100%;
+  font-size: 10px;
+  font-weight: inherit;
+  line-height: 1.35;
+}
+.help-instructions-nav-desc {
+  display: block;
+  width: 100%;
+  font-size: 8px;
+  font-weight: 400;
+  color: var(--faint);
+  margin-top: 4px;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+.help-instructions-main {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px 22px;
+  background: var(--surface);
+  -webkit-overflow-scrolling: touch;
+}
+.help-instructions-main h3.help-pane-title {
+  margin: 0 0 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+.help-instructions-main p.help-lead {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+.help-instructions-main .help-block {
+  margin-bottom: 18px;
+}
+.help-instructions-main .help-block:last-child {
+  margin-bottom: 0;
+}
+.help-instructions-main h4 {
+  margin: 0 0 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.help-instructions-main p,
+.help-instructions-main li {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.help-instructions-main ul,
+.help-instructions-main ol {
+  margin: 0 0 10px;
+  padding-left: 1.2rem;
+}
+.help-instructions-main li {
+  margin-bottom: 8px;
+}
+.help-instructions-main li:last-child {
+  margin-bottom: 0;
+}
+.help-instructions-main ul {
+  list-style: disc;
+}
+.help-instructions-main ul.help-checks {
+  list-style: none;
+  padding-left: 0;
+}
+.help-instructions-main ul.help-checks li {
+  padding-left: 1rem;
+  position: relative;
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+.help-instructions-main ul.help-checks li::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  color: var(--text);
+  font-weight: 700;
+}
+.help-instructions-main strong {
+  font-weight: 500;
+  color: var(--text);
+}
+.help-instructions-main .help-muted {
+  color: var(--muted);
+  font-size: 11px;
+}
+.help-instructions-footer {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 10px 16px 14px;
+  font-size: 9px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--faint);
+  line-height: 1.5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  background: var(--surface);
+}
+.help-instructions-footer span {
+  min-width: min(100%, 240px);
+}
+@media (max-width: 640px) {
+  .help-instructions-modal {
+    height: min(92vh, 820px);
+    max-height: min(96vh, 900px);
+  }
+  .help-instructions-shell {
+    flex-direction: column;
+  }
+  .help-instructions-sidebar {
+    width: 100%;
+    max-width: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    flex-direction: column;
+    flex-wrap: nowrap;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .help-instructions-nav-btn {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+}
+
 .slicelab-mobile-only {
   display: none;
 }
