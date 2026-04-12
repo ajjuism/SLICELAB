@@ -6,7 +6,7 @@
 
 # SliceLab
 
-**Slice audio into samples in your browser.** Drop a long recording, auto-detect slice points (or slice to a grid), tweak fades and filenames, export a **ZIP of WAVs**, and sketch layered patterns in the **loop builder**. Processing runs in the browser—your files stay on your device.
+**Slice audio into samples in your browser.** Drop a long recording, auto-detect slice points (or slice to a grid), tweak fades and filenames, export a **ZIP of WAVs**, sketch layered patterns in the **loop builder**, and explore **granular playback** on the **Grains** tab. Processing runs in the browser—your files stay on your device.
 
 **Live app:** [slicelab.pxl8.studio](https://slicelab.pxl8.studio)
 
@@ -22,6 +22,9 @@
 | **Naming** | Indexed names (`smpl_001`…) or **hex**-style names, with a custom **prefix** |
 | **Export** | One-click **ZIP** of 16-bit mono WAV slices |
 | **Loop builder** | Step sequencer (8 / 16 / 32 steps per bar), per-layer hit rate, layers, swing, time signature, optional loop WAV download |
+| **Grains** | Granular “cloud” from your slices, delay/reverb, 7-band EQ, live scope/spectrum, **record to WAV** |
+| **Project folder** (optional) | On supported desktop browsers (Chrome, Edge, Arc), connect a folder so exports and a **source** copy of loaded audio go into `source/`, `exports/samples/`, `exports/loops/`, `exports/grains/`. Otherwise exports use normal browser downloads |
+| **Appearance** | **Invert** in the top bar toggles a near-black palette vs. the default light UI; your choice is saved in the browser |
 
 ---
 
@@ -51,6 +54,9 @@ npm start
 4. **Analyze** — Slices appear on the waveform and in the slice grid.
 5. **Preview** slices or the full file; use **Download zip** when you are happy with the cuts.
 6. **Loop builder** (after slices exist) — Pick step resolution (8–32 per bar), assign slices, adjust tempo and feel, play or export a loop.
+7. **Grains** (after slices exist) — Start the grain cloud, shape texture and space, use EQ if you like, then record the output to WAV when needed.
+
+On first visit, supported browsers may offer a **project folder** so files are written in one place; you can skip and use downloads only, or change this later from the top bar (**Project · …**).
 
 **Note:** The UI is aimed at **desktop/laptop** viewports; narrow screens show a short message to use a larger display.
 
@@ -61,6 +67,9 @@ npm start
 - [Next.js](https://nextjs.org/) 16 (App Router) · TypeScript · React 19  
 - [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) — decode, slice, preview, and pattern audio on the client  
 - [JSZip](https://stuk.github.io/jszip/) — ZIP downloads in the browser  
+- [Recharts](https://recharts.org/) — grain EQ response curve  
+- [next-themes](https://github.com/pacocoursey/next-themes) — persisted light / inverted appearance  
+- [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) — optional on-disk project layout (Chromium desktop)  
 - IBM Plex Mono / IBM Plex Sans  
 
 ---
@@ -70,9 +79,14 @@ npm start
 | Path | Role |
 | --- | --- |
 | `app/` | Routes, layout, metadata, global styles |
-| `app/components/` | UI (waveform, slice grid, loop builder, sidebar, …) |
+| `app/components/` | UI (waveform, slice grid, loop builder, grains, sidebar, onboarding, …) |
+| `app/context/ProjectContext.tsx` | Project folder connection, save notices, export routing |
 | `app/hooks/useAudioEngine.ts` | Audio context, playback, export |
 | `app/lib/audio.ts` | Detection, buffers, waveform drawing, WAV encoding |
+| `app/lib/projectFolder.ts` | FS Access helpers, IndexedDB handle persistence, export paths |
+| `app/providers.tsx` | Theme provider (default light, **Invert** toggles dark) |
 | `public/` | Static assets (logo, favicon, …) |
+
+Design tokens and marketing notes for matching SliceLab’s look elsewhere live in **`skill.md`**.
 
 The social / Open Graph image used in metadata lives at **`app/opengraph-image.png`** (same asset as in the banner above).
