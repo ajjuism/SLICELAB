@@ -200,15 +200,17 @@ function HomeInner() {
       }}
     >
       <div style={{ maxWidth: 360 }}>
-        <Image
-          src="/logo.svg"
-          width={48}
-          height={48}
-          alt=""
-          aria-hidden
-          priority
-          style={{ display: 'block', margin: '0 auto 14px' }}
-        />
+        <span className="topbar-logo-wrap" style={{ display: 'block', margin: '0 auto 14px', width: 48 }}>
+          <Image
+            src="/logo.svg"
+            width={48}
+            height={48}
+            alt=""
+            aria-hidden
+            priority
+            style={{ display: 'block' }}
+          />
+        </span>
         <p
           style={{
             fontSize: 11,

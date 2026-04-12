@@ -7,6 +7,12 @@ import type {
   TimeSignature,
 } from '../types';
 
+function waveCssVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
 export function fmtTime(s: number): string {
   const m = Math.floor(s / 60);
   const sec = (s % 60).toFixed(2).padStart(5, '0');
@@ -517,11 +523,11 @@ export function drawWaveform(
   const H = canvas.offsetHeight;
 
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = waveCssVar('--wave-canvas-bg', '#ffffff');
   ctx.fillRect(0, 0, W, H);
 
   if (!audioBuffer) {
-    ctx.fillStyle = '#ccc';
+    ctx.fillStyle = waveCssVar('--wave-empty-text', '#cccccc');
     ctx.font = '11px IBM Plex Mono';
     ctx.fillText('no audio loaded', W / 2 - 55, H / 2);
     return;
@@ -531,14 +537,14 @@ export function drawWaveform(
   const data = audioBuffer.getChannelData(0);
   const step = Math.ceil(data.length / W);
 
-  ctx.strokeStyle = '#e0deda';
+  ctx.strokeStyle = waveCssVar('--wave-midline', '#e0deda');
   ctx.lineWidth = 0.5;
   ctx.beginPath();
   ctx.moveTo(0, H / 2);
   ctx.lineTo(W, H / 2);
   ctx.stroke();
 
-  ctx.strokeStyle = '#a09e99';
+  ctx.strokeStyle = waveCssVar('--wave-line', '#a09e99');
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = 0; x < W; x++) {
@@ -557,13 +563,13 @@ export function drawWaveform(
     const { start, end } = overlay.highlightBetweenSec;
     const x0 = Math.max(0, Math.min(W, (start / dur) * W));
     const x1 = Math.max(0, Math.min(W, (end / dur) * W));
-    ctx.fillStyle = 'rgba(18, 21, 26, 0.1)';
+    ctx.fillStyle = waveCssVar('--wave-dim', 'rgba(18, 21, 26, 0.1)');
     ctx.fillRect(0, 0, x0, H);
     ctx.fillRect(x1, 0, W - x1, H);
   }
 
-  const markerLine = 'rgba(160, 158, 153, 0.42)';
-  const markerLabel = '#8a8883';
+  const markerLine = waveCssVar('--wave-marker-line', 'rgba(160, 158, 153, 0.42)');
+  const markerLabel = waveCssVar('--wave-marker-label', '#8a8883');
 
   if (manualRegionSec && dur > 0) {
     const { start: rs, end: re } = manualRegionSec;
@@ -571,7 +577,7 @@ export function drawWaveform(
     const xEnd = Math.max(0, Math.min(W, (re / dur) * W));
     ctx.font = '9px IBM Plex Mono';
 
-    ctx.strokeStyle = 'rgba(112, 110, 105, 0.72)';
+    ctx.strokeStyle = waveCssVar('--wave-region-start', 'rgba(112, 110, 105, 0.72)');
     ctx.lineWidth = 1.35;
     ctx.beginPath();
     ctx.moveTo(xStart, 0);
@@ -580,13 +586,13 @@ export function drawWaveform(
     ctx.fillStyle = markerLabel;
     ctx.fillText('S', xStart + 2, 11);
 
-    ctx.strokeStyle = 'rgba(72, 98, 122, 0.78)';
+    ctx.strokeStyle = waveCssVar('--wave-region-end-stroke', 'rgba(72, 98, 122, 0.78)');
     ctx.lineWidth = 1.35;
     ctx.beginPath();
     ctx.moveTo(xEnd, 0);
     ctx.lineTo(xEnd, H);
     ctx.stroke();
-    ctx.fillStyle = 'rgba(72, 98, 122, 0.95)';
+    ctx.fillStyle = waveCssVar('--wave-region-end-fill', 'rgba(72, 98, 122, 0.95)');
     ctx.fillText('E', xEnd + 2, 11);
   }
 
@@ -605,7 +611,7 @@ export function drawWaveform(
 
   if (overlay?.playheadSec != null && dur > 0) {
     const px = Math.max(0, Math.min(W, (overlay.playheadSec / dur) * W));
-    ctx.strokeStyle = 'rgba(18, 21, 26, 0.85)';
+    ctx.strokeStyle = waveCssVar('--wave-playhead', 'rgba(18, 21, 26, 0.85)');
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(px, 0);
@@ -631,8 +637,7 @@ export function drawMiniWave(
   const len = endSample - startSample;
   const step = Math.ceil(len / W);
 
-  /* Matches --muted (cool neutral); transparent bg shows card surface */
-  ctx.strokeStyle = '#5c6470';
+  ctx.strokeStyle = waveCssVar('--wave-mini-stroke', '#5c6470');
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = 0; x < W; x++) {

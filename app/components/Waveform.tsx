@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback } from 'react';
+import { useTheme } from 'next-themes';
 import type { AudioInfo, DetectionMethod } from '../types';
 import { drawWaveform, fmtTime, type WaveformPlaybackOverlay } from '../lib/audio';
 
@@ -46,6 +47,7 @@ export function Waveform({
   manualRegionSec = null,
   onManualWaveformPointer,
 }: WaveformProps) {
+  const { resolvedTheme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const playbackRef = useRef(playback);
   playbackRef.current = playback;
@@ -61,7 +63,7 @@ export function Waveform({
       overlayFromPlayback(playbackRef.current),
       region,
     );
-  }, [audioBuffer, markers, manualRegionSec?.start, manualRegionSec?.end]);
+  }, [audioBuffer, markers, manualRegionSec?.start, manualRegionSec?.end, resolvedTheme]);
 
   useEffect(() => {
     redraw();
@@ -71,6 +73,7 @@ export function Waveform({
     playback?.highlightBetweenSec,
     manualRegionSec?.start,
     manualRegionSec?.end,
+    resolvedTheme,
   ]);
 
   useEffect(() => {

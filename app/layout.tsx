@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import './globals.css';
+import { Providers } from './providers';
 
 const siteTitle = 'SliceLab · Slice audio into samples in your browser';
 const siteDescription =
@@ -42,10 +44,16 @@ export const metadata: Metadata = {
   },
 };
 
+/** Syncs persisted theme before paint — must match `storageKey` / values in `providers.tsx` (next-themes). */
+const THEME_INIT = `(function(){try{var k='slicelab-theme';var v=localStorage.getItem(k);if(v==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

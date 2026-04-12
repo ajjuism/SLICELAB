@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
+import { useTheme } from 'next-themes';
 import type { Slice } from '../types';
 import { drawMiniWave, fmtTime } from '../lib/audio';
 
@@ -12,6 +13,7 @@ interface SliceCardProps {
 }
 
 export function SliceCard({ slice, audioBuffer, isPlaying, onClick }: SliceCardProps) {
+  const { resolvedTheme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -21,7 +23,7 @@ export function SliceCard({ slice, audioBuffer, isPlaying, onClick }: SliceCardP
         drawMiniWave(canvasRef.current, audioBuffer, slice.startSample, slice.endSample);
       }
     });
-  }, [audioBuffer, slice.startSample, slice.endSample]);
+  }, [audioBuffer, slice.startSample, slice.endSample, resolvedTheme]);
 
   const displayName = slice.name.replace(/\.(wav|mp3|ogg|flac|m4a)$/i, '');
 
@@ -51,7 +53,7 @@ export function SliceCard({ slice, audioBuffer, isPlaying, onClick }: SliceCardP
         if (isPlaying) return;
         const el = e.currentTarget as HTMLDivElement;
         el.style.borderColor = 'var(--border2)';
-        el.style.boxShadow = '0 2px 10px rgba(18, 21, 26, 0.07)';
+        el.style.boxShadow = 'var(--shadow-card)';
         el.style.transform = 'translateY(-1px)';
       }}
       onMouseLeave={e => {

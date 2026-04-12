@@ -517,11 +517,11 @@ export function HelpInstructions() {
               aria-modal="true"
               aria-labelledby="help-instructions-title"
               aria-describedby="help-instructions-desc"
+              className="help-instructions-backdrop"
               style={{
                 position: 'fixed',
                 inset: 0,
                 zIndex: 10000,
-                background: 'rgba(18, 21, 26, 0.42)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

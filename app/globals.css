@@ -16,16 +16,106 @@
   --faint: #8b939f;
   --green: #2a7a4b;
   --red: #c0392b;
+  /* Semantic UI */
+  --scrim: rgba(18, 21, 26, 0.42);
+  --shadow-elevated: 0 8px 28px rgba(18, 21, 26, 0.12);
+  --shadow-card: 0 2px 10px rgba(18, 21, 26, 0.08);
+  --shadow-inset-focus: inset 0 0 0 1px rgba(18, 21, 26, 0.28);
+  --nav-hover-bg: rgba(255, 255, 255, 0.55);
+  --red-muted-bg: rgba(192, 57, 43, 0.08);
+  /* Waveform canvas (read in lib/audio.ts) */
+  --wave-canvas-bg: #ffffff;
+  --wave-empty-text: #cccccc;
+  --wave-midline: #e0deda;
+  --wave-line: #a09e99;
+  --wave-dim: rgba(18, 21, 26, 0.1);
+  --wave-marker-line: rgba(160, 158, 153, 0.42);
+  --wave-marker-label: #8a8883;
+  --wave-region-start: rgba(112, 110, 105, 0.72);
+  --wave-region-end-stroke: rgba(72, 98, 122, 0.78);
+  --wave-region-end-fill: rgba(72, 98, 122, 0.95);
+  --wave-playhead: rgba(18, 21, 26, 0.85);
+  --wave-mini-stroke: #5c6470;
+  /* Grain scope canvas */
+  --grain-scope-border: #dde2ea;
+  --grain-scope-bg: #ffffff;
+  --grain-scope-grid-major: rgba(18, 21, 26, 0.09);
+  --grain-scope-grid-minor: rgba(18, 21, 26, 0.045);
+  --grain-scope-axis: #8b939f;
+  --grain-scope-wave: #5c6470;
+  --grain-scope-spectrum: #12151a;
+}
+
+html.dark {
+  color-scheme: dark;
+  /* True-black forward: page bg at/near #000; UI chrome barely lifted */
+  --bg: #000000;
+  --surface: #050505;
+  --panel: #0a0a0b;
+  --border: #18181a;
+  --border2: #242428;
+  --text: #eceef2;
+  --muted: #8b929e;
+  --faint: #5a616c;
+  --green: #4dce7a;
+  --red: #f09086;
+  --scrim: rgba(0, 0, 0, 0.78);
+  --shadow-elevated: 0 20px 56px rgba(0, 0, 0, 0.65);
+  --shadow-card: 0 6px 24px rgba(0, 0, 0, 0.55);
+  --shadow-inset-focus: inset 0 0 0 1px rgba(236, 238, 242, 0.16);
+  --nav-hover-bg: rgba(255, 255, 255, 0.04);
+  --red-muted-bg: rgba(240, 144, 134, 0.09);
+  --wave-canvas-bg: #050505;
+  --wave-empty-text: #3d424c;
+  --wave-midline: #22252c;
+  --wave-line: #6e7684;
+  --wave-dim: rgba(0, 0, 0, 0.5);
+  --wave-marker-line: rgba(170, 178, 190, 0.26);
+  --wave-marker-label: #949ba8;
+  --wave-region-start: rgba(150, 160, 175, 0.42);
+  --wave-region-end-stroke: rgba(95, 150, 195, 0.62);
+  --wave-region-end-fill: rgba(120, 175, 220, 0.85);
+  --wave-playhead: rgba(245, 246, 248, 0.96);
+  --wave-mini-stroke: #8b929e;
+  --grain-scope-border: #1c1c20;
+  --grain-scope-bg: #050505;
+  --grain-scope-grid-major: rgba(236, 238, 242, 0.055);
+  --grain-scope-grid-minor: rgba(236, 238, 242, 0.028);
+  --grain-scope-axis: #6e7684;
+  --grain-scope-wave: #8b929e;
+  --grain-scope-spectrum: #eceef2;
+}
+
+html {
+  color-scheme: light;
+}
+
+/* Logo mark is dark paths — invert on dark surfaces */
+html.dark .topbar-logo-wrap img {
+  filter: invert(1) brightness(1.08);
 }
 
 * { box-sizing: border-box; }
 
+html {
+  margin: 0;
+  padding: 0;
+  /* Avoid UA margin flash at viewport edge on refresh */
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
 html, body {
+  margin: 0;
+  padding: 0;
   height: 100%;
+  min-height: 100%;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: 'IBM Plex Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.15s ease;
 }
 
 input[type=range] {
@@ -82,6 +172,9 @@ select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M1.5 2.5L4 5l2.5-2.5' fill='none' stroke='%235c6470' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 2px center;
+}
+html.dark select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M1.5 2.5L4 5l2.5-2.5' fill='none' stroke='%239aa3b2' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 input[type=text] {
   padding: 6px 0;
@@ -176,8 +269,14 @@ select.loop-step-select:disabled {
   transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 .kit-slice-card:hover {
-  box-shadow: 0 2px 10px rgba(18, 21, 26, 0.08);
+  box-shadow: var(--shadow-card);
   transform: translateY(-1px);
+}
+
+.help-instructions-backdrop {
+  background: var(--scrim);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 /* SliceLab is designed for desktop; show a notice on phones and small tablets */
@@ -298,7 +397,7 @@ select.loop-step-select:disabled {
   transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
 .help-instructions-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--nav-hover-bg);
   color: var(--text);
 }
 .help-instructions-nav-btn[aria-selected='true'],
@@ -467,7 +566,7 @@ select.loop-step-select:disabled {
   position: fixed;
   inset: 0;
   z-index: 10001;
-  background: rgba(18, 21, 26, 0.48);
+  background: var(--scrim);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
@@ -487,9 +586,7 @@ select.loop-step-select:disabled {
   border: 1px solid var(--border2);
   border-radius: 6px;
   padding: 0;
-  box-shadow:
-    0 4px 6px rgba(18, 21, 26, 0.04),
-    0 22px 48px rgba(18, 21, 26, 0.12);
+  box-shadow: var(--shadow-elevated);
   overflow: hidden;
 }
 .project-onboarding-head {
@@ -620,13 +717,13 @@ select.loop-step-select:disabled {
   border-color: var(--border2);
 }
 .project-onboarding-btn-danger {
-  border-color: rgba(192, 57, 43, 0.35);
+  border-color: color-mix(in srgb, var(--red) 35%, transparent);
   color: var(--red);
-  background: rgba(192, 57, 43, 0.06);
+  background: var(--red-muted-bg);
 }
 .project-onboarding-btn-danger:hover {
-  background: rgba(192, 57, 43, 0.1);
-  border-color: rgba(192, 57, 43, 0.45);
+  background: color-mix(in srgb, var(--red) 16%, transparent);
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
 }
 .project-onboarding-link {
   align-self: center;
@@ -683,7 +780,7 @@ select.loop-step-select:disabled {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 28px rgba(18, 21, 26, 0.12);
+  box-shadow: var(--shadow-elevated);
 }
 .project-save-banner-text {
   flex: 1 1 200px;

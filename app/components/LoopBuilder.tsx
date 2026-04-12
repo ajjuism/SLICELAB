@@ -699,7 +699,7 @@ export function LoopBuilder({
                               ? 'var(--panel)'
                               : 'transparent',
                           boxShadow: isPlayheadHit
-                            ? 'inset 0 0 0 1px rgba(18, 21, 26, 0.28)'
+                            ? 'var(--shadow-inset-focus)'
                             : onBeat
                               ? 'inset 0 0 0 1px var(--border)'
                               : 'none',

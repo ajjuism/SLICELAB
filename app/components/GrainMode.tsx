@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTheme } from 'next-themes';
 import type { Slice } from '../types';
 import { bufferToWav } from '../lib/audio';
 import { createGrainCloud, type GrainCloudHandle, type GrainCloudParams } from '../lib/grainCloud';
@@ -12,7 +13,8 @@ import {
 import { Knob } from './Knob';
 import { GrainGraphicEQ } from './GrainGraphicEQ';
 import { getGrainEqInitialGainsDb } from '../lib/grainEqPresets';
-import { drawGrainMonitor, GRAIN_MONITOR_THEME } from '../lib/grainScopeDraw';
+import { getGrainMonitorThemeFromCss } from '../lib/canvasTheme';
+import { drawGrainMonitor } from '../lib/grainScopeDraw';
 import { useProjectOptional } from '../context/ProjectContext';
 import { triggerBlobDownload } from '../lib/projectFolder';
 
@@ -51,6 +53,7 @@ export function GrainMode({
   const [eqBypass, setEqBypass] = useState(false);
   const [audioRate, setAudioRate] = useState(48000);
   const project = useProjectOptional();
+  const { resolvedTheme } = useTheme();
 
   const cloudRef = useRef<GrainCloudHandle | null>(null);
   const grainBusRef = useRef<GainNode | null>(null);
@@ -176,7 +179,7 @@ export function GrainMode({
       const c2d = sc.getContext('2d');
       if (c2d) {
         c2d.setTransform(1, 0, 0, 1, 0, 0);
-        c2d.fillStyle = GRAIN_MONITOR_THEME.plotBg;
+        c2d.fillStyle = getGrainMonitorThemeFromCss().plotBg;
         c2d.fillRect(0, 0, sc.width, sc.height);
       }
     }
@@ -212,7 +215,7 @@ export function GrainMode({
           analyser.fftSize,
           analyser.minDecibels,
           analyser.maxDecibels,
-          GRAIN_MONITOR_THEME,
+          getGrainMonitorThemeFromCss(),
           spectrumSmoothedRef.current,
         );
       }
@@ -223,7 +226,7 @@ export function GrainMode({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };
-  }, [playing]);
+  }, [playing, resolvedTheme]);
 
   const startGrain = async () => {
     if (!audioBuffer || slices.length === 0) return;
@@ -586,7 +589,7 @@ export function GrainMode({
                         padding: '8px 16px',
                         borderRadius: 2,
                         border: `1px solid ${recording ? 'var(--red)' : 'var(--border2)'}`,
-                        background: recording ? 'rgba(192, 57, 43, 0.08)' : 'var(--surface)',
+                        background: recording ? 'var(--red-muted-bg)' : 'var(--surface)',
                         color: 'var(--text)',
                         fontFamily: "'IBM Plex Mono', monospace",
                         fontSize: 11,
@@ -671,7 +674,7 @@ export function GrainMode({
                   minHeight: 220,
                   display: 'block',
                   borderRadius: 2,
-                  background: GRAIN_MONITOR_THEME.plotBg,
+                  background: 'var(--grain-scope-bg)',
                 }}
                 aria-label="Output monitor: waveform and spectrum"
               />
@@ -690,8 +693,8 @@ export function GrainMode({
                     padding: '20px 18px',
                     borderRadius: 2,
                     textAlign: 'center',
-                    background: GRAIN_MONITOR_THEME.plotBg,
-                    border: `1px dashed ${GRAIN_MONITOR_THEME.frameBorder}`,
+                    background: 'var(--grain-scope-bg)',
+                    border: '1px dashed var(--grain-scope-border)',
                     pointerEvents: 'none',
                   }}
                 >

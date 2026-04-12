@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { ThemeToggle } from './ThemeToggle';
 
 export type MainTab = 'slices' | 'loops' | 'grain';
 
@@ -53,15 +54,17 @@ export function Topbar({
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Image
-            src="/logo.svg"
-            width={22}
-            height={22}
-            alt=""
-            aria-hidden
-            priority
-            style={{ display: 'block', flexShrink: 0 }}
-          />
+          <span className="topbar-logo-wrap" style={{ display: 'flex', flexShrink: 0 }}>
+            <Image
+              src="/logo.svg"
+              width={22}
+              height={22}
+              alt=""
+              aria-hidden
+              priority
+              style={{ display: 'block' }}
+            />
+          </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <div style={{
               fontFamily: "'IBM Plex Mono', monospace",
@@ -174,6 +177,7 @@ export function Topbar({
         }}>
           {fileName}
         </span>
+        <ThemeToggle />
         <button
           type="button"
           onClick={onDownload}
