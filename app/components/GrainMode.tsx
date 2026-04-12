@@ -13,6 +13,8 @@ import { Knob } from './Knob';
 import { GrainGraphicEQ } from './GrainGraphicEQ';
 import { getGrainEqInitialGainsDb } from '../lib/grainEqPresets';
 import { drawGrainMonitor, GRAIN_MONITOR_THEME } from '../lib/grainScopeDraw';
+import { useProjectOptional } from '../context/ProjectContext';
+import { triggerBlobDownload } from '../lib/projectFolder';
 
 interface GrainModeProps {
   slices: Slice[];
@@ -48,6 +50,7 @@ export function GrainMode({
   const [eqGainsDb, setEqGainsDb] = useState<number[]>(() => getGrainEqInitialGainsDb());
   const [eqBypass, setEqBypass] = useState(false);
   const [audioRate, setAudioRate] = useState(48000);
+  const project = useProjectOptional();
 
   const cloudRef = useRef<GrainCloudHandle | null>(null);
   const grainBusRef = useRef<GainNode | null>(null);
@@ -299,12 +302,15 @@ export function GrainMode({
       const buf = mergeStereoChunks(recLRef.current, recRRef.current, ctx.sampleRate);
       const wav = bufferToWav(buf);
       const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'slicelab_grain.wav';
-      a.click();
-      URL.revokeObjectURL(url);
+      void (async () => {
+        let saved = false;
+        if (project?.hasProjectFolder) {
+          saved = await project.trySaveGrain(blob);
+        }
+        if (!saved) {
+          triggerBlobDownload(blob, 'slicelab_grain.wav');
+        }
+      })();
       recLRef.current = [];
       recRRef.current = [];
       recSamplesRef.current = 0;

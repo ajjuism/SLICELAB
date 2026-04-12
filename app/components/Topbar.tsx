@@ -10,6 +10,10 @@ interface TopbarProps {
   onDownload: () => void;
   tab: MainTab;
   onTabChange: (tab: MainTab) => void;
+  /** When FS Access API exists, show project folder control. */
+  projectSupported?: boolean;
+  projectLabel?: string;
+  onProjectSettings?: () => void;
 }
 
 const tabBtn = (active: boolean) => ({
@@ -26,7 +30,16 @@ const tabBtn = (active: boolean) => ({
   transition: 'border-color 0.12s ease, background 0.12s ease, color 0.12s ease',
 });
 
-export function Topbar({ fileName, hasSlices, onDownload, tab, onTabChange }: TopbarProps) {
+export function Topbar({
+  fileName,
+  hasSlices,
+  onDownload,
+  tab,
+  onTabChange,
+  projectSupported = false,
+  projectLabel,
+  onProjectSettings,
+}: TopbarProps) {
   return (
     <div style={{
       display: 'flex',
@@ -123,7 +136,33 @@ export function Topbar({ fileName, hasSlices, onDownload, tab, onTabChange }: To
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {projectSupported && projectLabel && onProjectSettings ? (
+          <button
+            type="button"
+            onClick={onProjectSettings}
+            title="Change project folder or export location"
+            style={{
+              padding: '5px 10px',
+              borderRadius: 2,
+              border: '1px solid var(--border)',
+              background: 'var(--bg)',
+              color: 'var(--muted)',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 9,
+              cursor: 'pointer',
+              letterSpacing: 0.2,
+              maxWidth: 200,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flexShrink: 1,
+            }}
+          >
+            <span style={{ color: 'var(--faint)' }}>Project · </span>
+            {projectLabel}
+          </button>
+        ) : null}
         <span style={{
           fontFamily: "'IBM Plex Mono', monospace",
           fontSize: 9,

@@ -21,8 +21,11 @@ import {
   getLoopStepLayout,
   samplePositionToLoopStep,
 } from '../lib/audio';
+import { useProjectOptional } from '../context/ProjectContext';
+import { triggerBlobDownload } from '../lib/projectFolder';
 
 export function useAudioEngine() {
+  const project = useProjectOptional();
   const audioCtxRef = useRef<AudioContext | null>(null);
   const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const loopSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -121,13 +124,16 @@ export function useAudioEngine() {
       setTimeout(() => setProgress(0), 500);
       setStatus(`Loaded · ${buffer.duration.toFixed(2)}s · ${buffer.sampleRate}Hz · ${buffer.numberOfChannels}ch`);
       setStatusActive(false);
+      if (project?.hasProjectFolder) {
+        void project.onSourceFileLoaded(file);
+      }
     } catch {
       setStatus('Error decoding audio — try another format');
       setStatusActive(false);
     } finally {
       setIsLoading(false);
     }
-  }, [getCtx]);
+  }, [getCtx, project]);
 
   const addManualCut = useCallback((timeSec: number) => {
     const buf = audioBufferRef.current;
@@ -417,15 +423,18 @@ export function useAudioEngine() {
 
     const wav = bufferToWav(bar);
     const blob = new Blob([wav], { type: 'audio/wav' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'slicelab_loop.wav';
-    a.click();
-    URL.revokeObjectURL(url);
-    setStatus('Downloaded loop as slicelab_loop.wav');
+    let saved = false;
+    if (project?.hasProjectFolder) {
+      saved = await project.trySaveLoop(blob);
+    }
+    if (!saved) {
+      triggerBlobDownload(blob, 'slicelab_loop.wav');
+    }
+    setStatus(
+      saved ? 'Saved loop WAV to project · exports/loops/' : 'Downloaded loop as slicelab_loop.wav',
+    );
     setStatusActive(false);
-  }, [getCtx, slices]);
+  }, [getCtx, slices, project]);
 
   const playSlice = useCallback((slice: Slice) => {
     if (!audioBufferRef.current) return;
@@ -527,17 +536,22 @@ export function useAudioEngine() {
     }
 
     const blob = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'slicelab_samples.zip';
-    a.click();
-    URL.revokeObjectURL(url);
+    let saved = false;
+    if (project?.hasProjectFolder) {
+      saved = await project.trySaveZip(blob);
+    }
+    if (!saved) {
+      triggerBlobDownload(blob, 'slicelab_samples.zip');
+    }
     setProgress(100);
     setTimeout(() => setProgress(0), 800);
-    setStatus(`Downloaded ${slices.length} samples as zip`);
+    setStatus(
+      saved
+        ? `Saved ${slices.length} samples zip to project · exports/samples/`
+        : `Downloaded ${slices.length} samples as zip`,
+    );
     setStatusActive(false);
-  }, [slices, getCtx]);
+  }, [slices, getCtx, project]);
 
   const clear = useCallback(() => {
     stopPlayback();

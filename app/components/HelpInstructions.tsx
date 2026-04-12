@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useProject, type ProjectMode } from '../context/ProjectContext';
 
 function HelpIcon() {
   return (
@@ -351,7 +352,28 @@ function PanelGrain() {
   );
 }
 
-function PanelFiles() {
+function PanelFiles({
+  projectLabel,
+  projectMode,
+  hasProjectFolder,
+  fsAccessSupported,
+}: {
+  projectLabel: string;
+  projectMode: ProjectMode;
+  hasProjectFolder: boolean;
+  fsAccessSupported: boolean;
+}) {
+  const locationSummary =
+    projectMode === 'loading'
+      ? 'Checking saved folder…'
+      : hasProjectFolder
+        ? `A project folder is connected (${projectLabel}). Exports and source copies are written under that folder.`
+        : projectMode === 'unset'
+          ? fsAccessSupported
+            ? 'No folder chosen yet — use the project control in the top bar when prompted, or continue with browser downloads only.'
+            : 'This browser does not support picking a project folder; exports use your normal download location.'
+          : `Using browser downloads (${projectLabel}). Pick a project folder from the top bar if you want files organized on disk.`;
+
   return (
     <div id="help-panel-files" role="tabpanel" aria-labelledby="help-nav-files">
       <h3 className="help-pane-title">Files & privacy</h3>
@@ -359,6 +381,22 @@ function PanelFiles() {
         SliceLab does not upload your audio. Decoding, analysis, and export run in the browser tab using the Web Audio
         API and JavaScript—your files stay on your device unless you save or share them yourself.
       </p>
+
+      <div className="help-block help-project-status">
+        <h4>Project folder & exports</h4>
+        <p style={{ marginBottom: 0 }}>{locationSummary}</p>
+        <p className="help-muted" style={{ marginTop: 10, marginBottom: 0 }}>
+          <strong>Current setting:</strong> <code className="help-code-inline">{projectLabel}</code>
+          {hasProjectFolder ? (
+            <>
+              {' '}
+              — files go into <code className="help-code-inline">source/</code>,{' '}
+              <code className="help-code-inline">exports/samples/</code>, <code className="help-code-inline">exports/loops/</code>,{' '}
+              <code className="help-code-inline">exports/grains/</code>.
+            </>
+          ) : null}
+        </p>
+      </div>
 
       <div className="help-block">
         <h4>Import</h4>
@@ -371,6 +409,11 @@ function PanelFiles() {
       <div className="help-block">
         <h4>Export</h4>
         <ul>
+          <li>
+            <strong>Project folder</strong> (supported browsers) — On launch you can pick a folder; SliceLab writes{' '}
+            <code>source/</code>, <code>exports/samples/</code>, <code>exports/loops/</code>, and{' '}
+            <code>exports/grains/</code> with numbered files. Otherwise exports use the normal download folder.
+          </li>
           <li>
             <strong>Slice zip</strong> — WAV slices (mono, 16-bit) plus sidecar metadata for DAWs or samplers.
           </li>
@@ -396,6 +439,7 @@ function PanelFiles() {
 }
 
 export function HelpInstructions() {
+  const project = useProject();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [section, setSection] = useState<HelpSectionId>('overview');
@@ -537,7 +581,14 @@ export function HelpInstructions() {
                     {section === 'slice' && <PanelSlice />}
                     {section === 'loop' && <PanelLoop />}
                     {section === 'grain' && <PanelGrain />}
-                    {section === 'files' && <PanelFiles />}
+                    {section === 'files' && (
+                      <PanelFiles
+                        projectLabel={project.label}
+                        projectMode={project.mode}
+                        hasProjectFolder={project.hasProjectFolder}
+                        fsAccessSupported={project.supported}
+                      />
+                    )}
                   </div>
                 </div>
 

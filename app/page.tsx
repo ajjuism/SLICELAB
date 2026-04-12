@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import type { DetectionSettings, FadeSettings, NamingSettings } from './types';
 import { useAudioEngine } from './hooks/useAudioEngine';
+import { ProjectProvider, useProject } from './context/ProjectContext';
 import { Topbar, type MainTab } from './components/Topbar';
 import { Sidebar } from './components/Sidebar';
 import { Waveform } from './components/Waveform';
@@ -12,6 +13,8 @@ import { LoopBuilder } from './components/LoopBuilder';
 import { GrainMode } from './components/GrainMode';
 import { StatusBar } from './components/StatusBar';
 import { HelpInstructions } from './components/HelpInstructions';
+import { ProjectOnboarding } from './components/ProjectOnboarding';
+import { ProjectSaveBanner } from './components/ProjectSaveBanner';
 
 const DEFAULT_DETECTION: DetectionSettings = {
   method: 'transient',
@@ -28,10 +31,19 @@ const DEFAULT_FADE: FadeSettings = { fadeIn: 5, fadeOut: 20 };
 const DEFAULT_NAMING: NamingSettings = { scheme: 'index', prefix: 'smpl' };
 
 export default function Home() {
+  return (
+    <ProjectProvider>
+      <HomeInner />
+    </ProjectProvider>
+  );
+}
+
+function HomeInner() {
   const [detection, setDetection] = useState<DetectionSettings>(DEFAULT_DETECTION);
   const [fade, setFade] = useState<FadeSettings>(DEFAULT_FADE);
   const [naming, setNaming] = useState<NamingSettings>(DEFAULT_NAMING);
   const [tab, setTab] = useState<MainTab>('slices');
+  const project = useProject();
   const engine = useAudioEngine();
 
   useEffect(() => {
@@ -54,6 +66,9 @@ export default function Home() {
         onDownload={engine.downloadZip}
         tab={tab}
         onTabChange={setTab}
+        projectSupported={project.supported}
+        projectLabel={project.mode === 'loading' ? '…' : project.label}
+        onProjectSettings={project.promptProjectSetup}
       />
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         <Sidebar
@@ -165,8 +180,10 @@ export default function Home() {
         </div>
       </div>
       <StatusBar message={engine.status} active={engine.statusActive} />
-      <HelpInstructions />
     </div>
+    <HelpInstructions />
+    <ProjectOnboarding />
+    <ProjectSaveBanner />
     <div
       className="slicelab-mobile-only"
       role="status"
