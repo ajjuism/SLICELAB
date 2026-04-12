@@ -3,6 +3,7 @@ import type {
   FadeSettings,
   NamingSettings,
   Slice,
+  StepsPerBar,
   TimeSignature,
 } from '../types';
 
@@ -31,6 +32,10 @@ export function detectSlices(
   const data = audioBuffer.getChannelData(0);
   const duration = audioBuffer.duration;
   const markers: number[] = [];
+
+  if (method === 'manual') {
+    return [];
+  }
 
   if (method === 'equal') {
     const n = Math.round(detection.numSlices);
@@ -123,6 +128,80 @@ export function detectSlices(
   return result;
 }
 
+const MIN_MANUAL_SLICE_SEC = 0.012;
+const MIN_MANUAL_CUT_GAP_SEC = 0.022;
+
+export interface ManualSliceRegion {
+  /** First exported slice starts here (seconds). Default 0. */
+  startSec: number;
+  /** Last exported slice ends here (seconds). Default buffer duration. */
+  endSec: number;
+}
+
+/**
+ * Build slices from manual cut times (seconds) and an optional export region.
+ * Cuts are internal boundaries between consecutive slices: first slice is [regionStart, t0], … last ends at regionEnd.
+ * Empty interior cuts → one slice [regionStart, regionEnd].
+ */
+export function slicesFromManualCuts(
+  audioBuffer: AudioBuffer,
+  cutTimesSec: number[],
+  fade: FadeSettings,
+  naming: NamingSettings,
+  region?: ManualSliceRegion | null,
+): Slice[] {
+  const duration = audioBuffer.duration;
+  const sr = audioBuffer.sampleRate;
+  const fi = fade.fadeIn / 1000;
+  const fo = fade.fadeOut / 1000;
+
+  let regionStart = region?.startSec ?? 0;
+  let regionEnd = region?.endSec ?? duration;
+  regionStart = Math.max(0, Math.min(regionStart, duration));
+  regionEnd = Math.max(0, Math.min(regionEnd, duration));
+  if (regionEnd <= regionStart) {
+    return [];
+  }
+  const span = regionEnd - regionStart;
+  const pad = Math.min(0.001 * span, 0.02);
+  if (span < MIN_MANUAL_SLICE_SEC * 1.5) {
+    return [];
+  }
+
+  const sorted = [...cutTimesSec]
+    .filter(t => t > regionStart + pad && t < regionEnd - pad)
+    .sort((a, b) => a - b);
+
+  const deduped: number[] = [];
+  for (const t of sorted) {
+    if (deduped.length === 0 || t - deduped[deduped.length - 1] >= MIN_MANUAL_CUT_GAP_SEC) {
+      deduped.push(t);
+    }
+  }
+
+  const markers = [regionStart, ...deduped, regionEnd];
+  const result: Slice[] = [];
+
+  for (let i = 0; i < markers.length - 1; i++) {
+    const start = markers[i];
+    const end = markers[i + 1];
+    if (end - start >= MIN_MANUAL_SLICE_SEC) {
+      result.push({
+        index: result.length,
+        name: nameSlice(result.length, naming) + '.wav',
+        start,
+        end,
+        dur: end - start,
+        startSample: Math.round(start * sr),
+        endSample: Math.round(end * sr),
+        fadeIn: fi,
+        fadeOut: fo,
+      });
+    }
+  }
+  return result;
+}
+
 export function sliceToAudioBuffer(
   audioBuffer: AudioBuffer,
   slice: Slice,
@@ -195,7 +274,7 @@ export function barDurationSeconds(bpm: number, timeSignature: TimeSignature): n
 /** Step grid for one bar — must match buildLayeredDrumPatternBuffer mixing layout. */
 export function getLoopStepLayout(
   bpm: number,
-  stepsPerBar: 8 | 16,
+  stepsPerBar: StepsPerBar,
   swingPercent: number,
   timeSignature: TimeSignature,
   sampleRate: number,
@@ -228,9 +307,29 @@ export function samplePositionToLoopStep(
   return 0;
 }
 
+/** Pitch shift in semitones → playback rate (sampler-style: pitch + tempo). */
+export function semitonesToPlaybackRate(semitones: number): number {
+  return Math.pow(2, semitones / 12);
+}
+
+function sampleChannelLinear(data: Float32Array, srcPos: number): number {
+  const n = data.length;
+  if (n === 0) return 0;
+  if (srcPos >= n - 1) return data[n - 1];
+  if (srcPos <= 0) return data[0];
+  const i0 = Math.floor(srcPos);
+  const frac = srcPos - i0;
+  const a = data[i0];
+  const b = data[Math.min(i0 + 1, n - 1)];
+  return a * (1 - frac) + b * frac;
+}
+
 /**
  * One bar (meter from time signature), multiple layers summed. Steps divide the bar evenly; odd-index steps can be swung.
  * Layers are mixed additively (layering). Muted layers are skipped.
+ *
+ * @param trimSamplesToStep — When true (default), each hit only plays the first ~step worth of the slice. When false, the slice plays from the step until the slice ends or the bar ends (whichever comes first).
+ * @param layerPitchSemitones — Per-layer pitch in semitones (−∞…∞); 0 = original. Same rate for every hit on that layer.
  */
 export function buildLayeredDrumPatternBuffer(
   audioBuffer: AudioBuffer,
@@ -238,10 +337,12 @@ export function buildLayeredDrumPatternBuffer(
   layers: (number | null)[][],
   layerMutes: boolean[],
   bpm: number,
-  stepsPerBar: 8 | 16,
+  stepsPerBar: StepsPerBar,
   swingPercent: number,
   timeSignature: TimeSignature,
   audioCtx: AudioContext,
+  trimSamplesToStep = true,
+  layerPitchSemitones?: number[],
 ): AudioBuffer | null {
   const n = stepsPerBar;
   if (layers.length === 0) return null;
@@ -250,6 +351,8 @@ export function buildLayeredDrumPatternBuffer(
   }
   const mutes = [...layerMutes];
   while (mutes.length < layers.length) mutes.push(false);
+  const pitches = layerPitchSemitones ? [...layerPitchSemitones] : [];
+  while (pitches.length < layers.length) pitches.push(0);
 
   const sr = audioBuffer.sampleRate;
   const numCh = audioBuffer.numberOfChannels;
@@ -270,6 +373,10 @@ export function buildLayeredDrumPatternBuffer(
   for (let L = 0; L < layers.length; L++) {
     if (mutes[L]) continue;
     const pattern = layers[L];
+    const pitchSemis = pitches[L] ?? 0;
+    const rate = semitonesToPlaybackRate(pitchSemis);
+    if (!Number.isFinite(rate) || rate <= 1e-9) continue;
+
     for (let step = 0; step < n; step++) {
       const idx = pattern[step];
       if (idx === null || idx === undefined) continue;
@@ -280,19 +387,28 @@ export function buildLayeredDrumPatternBuffer(
       const offset = stepStartSample(step);
       if (offset >= totalSamples) continue;
 
-      const maxCopy = Math.min(stepSamples, totalSamples - offset);
-      const copyLen = Math.min(full.length, maxCopy);
+      const maxStepWindow = trimSamplesToStep
+        ? Math.min(stepSamples, totalSamples - offset)
+        : totalSamples - offset;
+      const maxOutFromSource = Math.max(1, Math.floor((full.length - 1) / rate) + 1);
+      const copyLen = Math.min(maxOutFromSource, maxStepWindow);
+      if (copyLen <= 0) continue;
 
-      for (let ch = 0; ch < numCh; ch++) {
-        const src = full.getChannelData(ch);
-        const dst = chOut[ch];
-        for (let j = 0; j < copyLen; j++) {
-          let v = src[j];
-          if (copyLen < full.length && j >= copyLen - fadeEnd) {
+      const fadeTail = copyLen < maxOutFromSource && copyLen >= fadeEnd;
+
+      for (let j = 0; j < copyLen; j++) {
+        const outIdx = offset + j;
+        if (outIdx >= totalSamples) break;
+        const srcPos = j * rate;
+        if (srcPos > full.length - 1) break;
+        for (let ch = 0; ch < numCh; ch++) {
+          const src = full.getChannelData(ch);
+          let v = sampleChannelLinear(src, srcPos);
+          if (fadeTail && j >= copyLen - fadeEnd) {
             const t = (copyLen - 1 - j) / fadeEnd;
             v *= Math.max(0, Math.min(1, t));
           }
-          dst[offset + j] += v;
+          chOut[ch][outIdx] += v;
         }
       }
     }
@@ -323,7 +439,7 @@ export function buildDrumPatternBuffer(
   slices: Slice[],
   stepSliceIndex: (number | null)[],
   bpm: number,
-  stepsPerBar: 8 | 16,
+  stepsPerBar: StepsPerBar,
   audioCtx: AudioContext,
 ): AudioBuffer | null {
   return buildLayeredDrumPatternBuffer(
@@ -336,6 +452,8 @@ export function buildDrumPatternBuffer(
     0,
     '4/4',
     audioCtx,
+    true,
+    [0],
   );
 }
 
@@ -387,6 +505,8 @@ export function drawWaveform(
   audioBuffer: AudioBuffer | null,
   markers: number[],
   overlay?: WaveformPlaybackOverlay | null,
+  /** Manual mode: draw region bounds (S/E) separately; `markers` are interior cuts only. */
+  manualRegionSec?: { start: number; end: number } | null,
 ): void {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = canvas.offsetWidth * dpr;
@@ -445,10 +565,35 @@ export function drawWaveform(
   const markerLine = 'rgba(160, 158, 153, 0.42)';
   const markerLabel = '#8a8883';
 
+  if (manualRegionSec && dur > 0) {
+    const { start: rs, end: re } = manualRegionSec;
+    const xStart = Math.max(0, Math.min(W, (rs / dur) * W));
+    const xEnd = Math.max(0, Math.min(W, (re / dur) * W));
+    ctx.font = '9px IBM Plex Mono';
+
+    ctx.strokeStyle = 'rgba(112, 110, 105, 0.72)';
+    ctx.lineWidth = 1.35;
+    ctx.beginPath();
+    ctx.moveTo(xStart, 0);
+    ctx.lineTo(xStart, H);
+    ctx.stroke();
+    ctx.fillStyle = markerLabel;
+    ctx.fillText('S', xStart + 2, 11);
+
+    ctx.strokeStyle = 'rgba(72, 98, 122, 0.78)';
+    ctx.lineWidth = 1.35;
+    ctx.beginPath();
+    ctx.moveTo(xEnd, 0);
+    ctx.lineTo(xEnd, H);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(72, 98, 122, 0.95)';
+    ctx.fillText('E', xEnd + 2, 11);
+  }
+
   markers.forEach((m, i) => {
     const x = (m / dur) * W;
-    ctx.strokeStyle = i === 0 ? 'rgba(112, 110, 105, 0.55)' : markerLine;
-    ctx.lineWidth = i === 0 ? 1.25 : 1;
+    ctx.strokeStyle = markerLine;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, H);

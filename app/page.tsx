@@ -62,17 +62,69 @@ export default function Home() {
           onFileLoad={engine.loadFile}
           onAnalyze={() => engine.analyze(detection, fade, naming)}
           onClear={engine.clear}
+          hasAppliedSlices={engine.slices.length > 0}
+          onClearAppliedSlices={engine.clearAppliedSlices}
+          manualCutTimes={engine.manualCutTimes}
+          onRemoveManualCut={engine.removeManualCutAtIndex}
+          onClearManualCuts={engine.clearManualCuts}
+          audioDurationSec={engine.audioInfo?.duration ?? null}
+          manualRegionStartSec={engine.manualRegionStartSec}
+          manualRegionEndSec={engine.manualRegionEndSec}
+          onManualRegionStartChange={engine.setManualRegionStart}
+          onManualRegionEndChange={engine.setManualRegionEnd}
         />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden' }}>
           <Waveform
             audioBuffer={engine.audioBuffer}
             audioInfo={engine.audioInfo}
-            markers={engine.slices.map(s => s.start)}
+            markers={
+              detection.method === 'manual' && engine.audioInfo
+                ? engine.slices.length > 0
+                  ? engine.slices.map(s => s.start)
+                  : (() => {
+                      const dur = engine.audioInfo.duration;
+                      const rs = engine.manualRegionStartSec;
+                      const re = engine.manualRegionEndSec;
+                      const cuts = engine.manualCutTimes;
+                      const fullFile =
+                        rs <= 1e-4 && re >= dur - 1e-4;
+                      if (fullFile && cuts.length === 0) return [];
+                      return cuts;
+                    })()
+                : engine.slices.length > 0
+                  ? engine.slices.map(s => s.start)
+                  : []
+            }
+            manualRegionSec={
+              detection.method === 'manual' &&
+              engine.audioInfo &&
+              engine.slices.length === 0
+                ? (() => {
+                    const dur = engine.audioInfo.duration;
+                    const rs = engine.manualRegionStartSec;
+                    const re = engine.manualRegionEndSec;
+                    const cuts = engine.manualCutTimes;
+                    const fullFile =
+                      rs <= 1e-4 && re >= dur - 1e-4;
+                    if (fullFile && cuts.length === 0) return null;
+                    return { start: rs, end: re };
+                  })()
+                : null
+            }
             method={detection.method}
-            sliceCount={engine.slices.length}
+            sliceCount={
+              detection.method === 'manual' && engine.slices.length === 0
+                ? engine.manualCutTimes.length + 1
+                : engine.slices.length
+            }
             playback={{
               playheadSec: engine.waveformPlayheadSec,
               highlightBetweenSec: engine.waveformHighlightSec,
+            }}
+            manualMode={detection.method === 'manual' && !!engine.audioInfo}
+            onManualWaveformPointer={(timeSec, shiftKey) => {
+              if (shiftKey) engine.removeManualCutNear(timeSec);
+              else engine.addManualCut(timeSec);
             }}
           />
           {tab === 'slices' ? (

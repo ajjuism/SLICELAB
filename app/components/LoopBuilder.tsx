@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import type { Slice, TimeSignature } from '../types';
+import type { Slice, StepsPerBar, TimeSignature } from '../types';
 import { fmtTime } from '../lib/audio';
 
 const MAX_LAYERS = 6;
@@ -20,6 +20,10 @@ const TIME_SIGNATURES: { value: TimeSignature; label: string }[] = [
 export interface LoopLayerRow {
   pattern: (number | null)[];
   muted: boolean;
+  /** 5–100: probability of a hit on each step when using Random / Randomize all. */
+  hitRate: number;
+  /** Semitones (−24…24): pitch-shift every hit on this layer (sampler-style; changes length vs step). */
+  pitchSemitones: number;
 }
 
 interface LoopBuilderProps {
@@ -31,18 +35,22 @@ interface LoopBuilderProps {
   onPlayLoop: (
     layers: (number | null)[][],
     layerMutes: boolean[],
+    layerPitchSemitones: number[],
     bpm: number,
-    stepsPerBar: 8 | 16,
+    stepsPerBar: StepsPerBar,
     swingPercent: number,
     timeSignature: TimeSignature,
+    trimSamplesToStep: boolean,
   ) => void;
   onDownloadLoopWav: (
     layers: (number | null)[][],
     layerMutes: boolean[],
+    layerPitchSemitones: number[],
     bpm: number,
-    stepsPerBar: 8 | 16,
+    stepsPerBar: StepsPerBar,
     swingPercent: number,
     timeSignature: TimeSignature,
+    trimSamplesToStep: boolean,
   ) => void;
   onStopLoop: () => void;
   onPlaySlice: (slice: Slice) => void;
@@ -70,11 +78,49 @@ function generateRandomPattern(
   });
 }
 
+/** Tighter cells for high step counts; the row stays horizontally scrollable. */
+function loopStepGridMetrics(stepsPerBar: StepsPerBar): {
+  colMin: number;
+  gap: number;
+  labelFs: number;
+  cellPad: string;
+  minGridPx: number;
+} {
+  switch (stepsPerBar) {
+    case 32:
+      return { colMin: 28, gap: 4, labelFs: 7, cellPad: '4px 2px 5px', minGridPx: 32 * 33 };
+    case 16:
+      return { colMin: 38, gap: 5, labelFs: 8, cellPad: '5px 4px 6px', minGridPx: 16 * 45 };
+    default:
+      return { colMin: 46, gap: 5, labelFs: 8, cellPad: '5px 4px 6px', minGridPx: 8 * 52 };
+  }
+}
+
+function beatStrideForSteps(stepsPerBar: StepsPerBar): number {
+  switch (stepsPerBar) {
+    case 32:
+      return 8;
+    case 16:
+      return 4;
+    default:
+      return 2;
+  }
+}
+
 function applyKitToLayers(rows: LoopLayerRow[], pool: Set<number>): LoopLayerRow[] {
   return rows.map(L => ({
     ...L,
     pattern: L.pattern.map(h => (h !== null && pool.has(h) ? h : null)),
   }));
+}
+
+const DEFAULT_HIT_RATE = 55;
+const PITCH_MIN = -24;
+const PITCH_MAX = 24;
+
+function formatPitchSemitones(st: number): string {
+  if (st === 0) return '0';
+  return st > 0 ? `+${st}` : `${st}`;
 }
 
 export function LoopBuilder({
@@ -90,32 +136,32 @@ export function LoopBuilder({
 }: LoopBuilderProps) {
   const [bpm, setBpm] = useState(120);
   const [swing, setSwing] = useState(0);
+  /** When true, each step plays only ~one step of audio; when false, slices play until they end or the bar ends. */
+  const [trimSamplesToStep, setTrimSamplesToStep] = useState(true);
   const [timeSignature, setTimeSignature] = useState<TimeSignature>('4/4');
-  const [stepsPerBar, setStepsPerBar] = useState<8 | 16>(16);
+  const [stepsPerBar, setStepsPerBar] = useState<StepsPerBar>(16);
   const [pool, setPool] = useState<Set<number>>(new Set());
-  const [density, setDensity] = useState(55);
-  const [layers, setLayers] = useState<LoopLayerRow[]>([{ pattern: [], muted: false }]);
+  const [layers, setLayers] = useState<LoopLayerRow[]>([
+    { pattern: [], muted: false, hitRate: DEFAULT_HIT_RATE, pitchSemitones: 0 },
+  ]);
 
-  const densityRef = useRef(density);
   const poolRef = useRef(pool);
   const stepsPerBarRef = useRef(stepsPerBar);
-  densityRef.current = density;
   poolRef.current = pool;
   stepsPerBarRef.current = stepsPerBar;
 
   const loopPlayingRef = useRef(loopPlaying);
   loopPlayingRef.current = loopPlaying;
 
-  /** Reseed all layers with the current density (hit probability per step). */
-  const randomizeAllLayersWithCurrentDensity = () => {
+  /** Reseed every layer using that layer’s hit rate. */
+  const randomizeAllLayers = () => {
     if (slices.length === 0) return;
     const kit = poolRef.current;
     const steps = stepsPerBarRef.current;
-    const p = densityRef.current / 100;
     setLayers(prev =>
       prev.map(L => ({
         ...L,
-        pattern: generateRandomPattern(slices, kit, steps, p),
+        pattern: generateRandomPattern(slices, kit, steps, L.hitRate / 100),
       })),
     );
   };
@@ -123,14 +169,14 @@ export function LoopBuilder({
   useEffect(() => {
     if (slices.length === 0) {
       setPool(new Set());
-      setLayers([{ pattern: [], muted: false }]);
+      setLayers([{ pattern: [], muted: false, hitRate: DEFAULT_HIT_RATE, pitchSemitones: 0 }]);
       return;
     }
     const kit = new Set(slices.map(s => s.index));
     setPool(kit);
-    const pat = generateRandomPattern(slices, kit, stepsPerBar, density / 100);
-    setLayers([{ pattern: pat, muted: false }]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset on new slice set; use latest steps/density from render
+    const pat = generateRandomPattern(slices, kit, stepsPerBar, DEFAULT_HIT_RATE / 100);
+    setLayers([{ pattern: pat, muted: false, hitRate: DEFAULT_HIT_RATE, pitchSemitones: 0 }]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset on new slice set
   }, [slices]);
 
   useEffect(() => {
@@ -175,13 +221,26 @@ export function LoopBuilder({
   const randomizeLayer = (layerIdx: number) => {
     const kit = poolRef.current;
     const steps = stepsPerBarRef.current;
-    const p = densityRef.current / 100;
     setLayers(prev =>
       prev.map((L, i) =>
         i === layerIdx
-          ? { ...L, pattern: generateRandomPattern(slices, kit, steps, p) }
+          ? { ...L, pattern: generateRandomPattern(slices, kit, steps, L.hitRate / 100) }
           : L,
       ),
+    );
+  };
+
+  const setLayerHitRate = (layerIdx: number, hitRate: number) => {
+    const v = Math.max(5, Math.min(100, Math.round(hitRate)));
+    setLayers(prev =>
+      prev.map((L, i) => (i === layerIdx ? { ...L, hitRate: v } : L)),
+    );
+  };
+
+  const setLayerPitch = (layerIdx: number, semitones: number) => {
+    const v = Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(semitones)));
+    setLayers(prev =>
+      prev.map((L, i) => (i === layerIdx ? { ...L, pitchSemitones: v } : L)),
     );
   };
 
@@ -198,7 +257,12 @@ export function LoopBuilder({
       if (prev.length >= MAX_LAYERS) return prev;
       return [
         ...prev,
-        { pattern: Array.from({ length: stepsPerBar }, () => null), muted: false },
+        {
+          pattern: Array.from({ length: stepsPerBar }, () => null),
+          muted: false,
+          hitRate: DEFAULT_HIT_RATE,
+          pitchSemitones: 0,
+        },
       ];
     });
   };
@@ -213,15 +277,36 @@ export function LoopBuilder({
   const kitIds = slices.filter(s => pool.has(s.index)).map(s => s.index);
   const layerPatterns = layers.map(L => L.pattern);
   const layerMutes = layers.map(L => L.muted);
+  const layerPitchSemitones = layers.map(L => L.pitchSemitones);
+  const stepGrid = loopStepGridMetrics(stepsPerBar);
+  const beatStride = beatStrideForSteps(stepsPerBar);
   const hasHits = layers.some(
     (L, i) => !layerMutes[i] && L.pattern.some(x => x !== null),
   );
   const canPlay = kitIds.length > 0 && hasHits;
 
   const playArgs = () =>
-    onPlayLoop(layerPatterns, layerMutes, bpm, stepsPerBar, swing, timeSignature);
+    onPlayLoop(
+      layerPatterns,
+      layerMutes,
+      layerPitchSemitones,
+      bpm,
+      stepsPerBar,
+      swing,
+      timeSignature,
+      trimSamplesToStep,
+    );
   const downloadArgs = () =>
-    onDownloadLoopWav(layerPatterns, layerMutes, bpm, stepsPerBar, swing, timeSignature);
+    onDownloadLoopWav(
+      layerPatterns,
+      layerMutes,
+      layerPitchSemitones,
+      bpm,
+      stepsPerBar,
+      swing,
+      timeSignature,
+      trimSamplesToStep,
+    );
 
   return (
     <div
@@ -299,45 +384,51 @@ export function LoopBuilder({
             />
             <span style={{ color: 'var(--faint)', minWidth: 32 }}>{swing}%</span>
           </label>
-          <label style={labelStyle} title="Chance of a hit on each step. Release slider to apply to all layers, or use Random on one layer.">
-            Hit rate
-            <input
-              type="range"
-              min={5}
-              max={100}
-              step={1}
-              value={density}
-              onChange={e => {
-                const v = Number(e.target.value);
-                setDensity(v);
-                densityRef.current = v;
-              }}
-              onPointerUp={randomizeAllLayersWithCurrentDensity}
-              onKeyUp={e => {
-                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                  randomizeAllLayersWithCurrentDensity();
-                }
-              }}
-              style={{ width: 90 }}
-            />
-            <span style={{ color: 'var(--faint)', minWidth: 32 }}>{density}%</span>
+          <button
+            type="button"
+            disabled={slices.length === 0 || kitIds.length === 0}
+            onClick={randomizeAllLayers}
+            title="Reseed every layer using each layer’s hit rate (sliders under each layer)"
+            style={{
+              ...miniBtn,
+              opacity: slices.length === 0 || kitIds.length === 0 ? 0.45 : 1,
+              cursor: slices.length === 0 || kitIds.length === 0 ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Randomize all
+          </button>
+          <label
+            style={meterLabelStyle}
+            title="How many steps divide one bar (scroll the pattern row when needed)."
+          >
+            Steps
+            <select
+              className="loop-step-select"
+              value={stepsPerBar}
+              onChange={e => setStepsPerBar(Number(e.target.value) as StepsPerBar)}
+              style={{ width: 72, flexShrink: 0, fontSize: 10 }}
+            >
+              <option value={8}>8</option>
+              <option value={16}>16</option>
+              <option value={32}>32</option>
+            </select>
           </label>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button
-              type="button"
-              onClick={() => setStepsPerBar(8)}
-              style={segBtn(stepsPerBar === 8)}
-            >
-              8 steps
-            </button>
-            <button
-              type="button"
-              onClick={() => setStepsPerBar(16)}
-              style={segBtn(stepsPerBar === 16)}
-            >
-              16 steps
-            </button>
-          </div>
+          <label
+            style={{
+              ...labelStyle,
+              cursor: 'pointer',
+              flexWrap: 'nowrap',
+            }}
+            title="On: only the first part of each slice plays, capped at one step (tight drum machine). Off: the slice keeps playing through the rest of the bar (or until the sample ends)."
+          >
+            <input
+              type="checkbox"
+              checked={trimSamplesToStep}
+              onChange={e => setTrimSamplesToStep(e.target.checked)}
+              style={{ accentColor: 'var(--text)', width: 12, height: 12, flexShrink: 0 }}
+            />
+            Trim to step
+          </label>
           {loopPlaying ? (
             <button
               type="button"
@@ -390,8 +481,8 @@ export function LoopBuilder({
         letterSpacing: 0.1,
         maxWidth: '100%',
       }}>
-        Layers stack on the same step; step menus use the kit only. Swing offsets odd steps. Hit rate + Random reseed patterns.
-        Meter sets bar length; 8/16 steps span one bar.
+        Layers stack on the same step; step menus use the kit only. Swing offsets odd steps. Each layer has its own hit rate for Random / Randomize all, and its own pitch (semitones).
+        Meter sets bar length; choose 8, 16, or 32 steps per bar. Uncheck “Trim to step” to let long samples ring out across the bar.
       </p>
 
       {slices.length === 0 ? (
@@ -520,16 +611,69 @@ export function LoopBuilder({
                       Remove
                     </button>
                   )}
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      flex: '1 1 160px',
+                      minWidth: 0,
+                      maxWidth: 280,
+                      fontSize: 10,
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      color: 'var(--muted)',
+                    }}
+                    title="Chance of a hit on each step when you press Random or Randomize all"
+                  >
+                    <span style={{ flexShrink: 0 }}>Hit</span>
+                    <input
+                      type="range"
+                      min={5}
+                      max={100}
+                      step={1}
+                      value={layer.hitRate}
+                      onChange={e => setLayerHitRate(layerIdx, Number(e.target.value))}
+                      style={{ flex: '1 1 48px', minWidth: 48, width: 0 }}
+                    />
+                    <span style={{ color: 'var(--faint)', minWidth: 30, flexShrink: 0 }}>{layer.hitRate}%</span>
+                  </label>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      flex: '1 1 100%',
+                      minWidth: 0,
+                      maxWidth: 360,
+                      fontSize: 10,
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      color: 'var(--muted)',
+                    }}
+                    title="Pitch in semitones for this layer (sampler-style: higher pitch plays faster and shorter within each step)"
+                  >
+                    <span style={{ flexShrink: 0 }}>Pitch</span>
+                    <input
+                      type="range"
+                      min={PITCH_MIN}
+                      max={PITCH_MAX}
+                      step={1}
+                      value={layer.pitchSemitones}
+                      onChange={e => setLayerPitch(layerIdx, Number(e.target.value))}
+                      style={{ flex: '1 1 80px', minWidth: 80, width: 0 }}
+                    />
+                    <span style={{ color: 'var(--faint)', minWidth: 44, flexShrink: 0 }}>
+                      {formatPitchSemitones(layer.pitchSemitones)} st
+                    </span>
+                  </label>
                 </div>
-                <div className="loop-steps-scroll" style={{ overflowX: 'auto', paddingBottom: 2 }}>
+                <div className="loop-steps-scroll" style={{ overflowX: 'auto', paddingBottom: 4 }}>
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${stepsPerBar}, minmax(46px, 1fr))`,
-                    gap: 5,
-                    minWidth: stepsPerBar * 50,
+                    gridTemplateColumns: `repeat(${stepsPerBar}, minmax(${stepGrid.colMin}px, 1fr))`,
+                    gap: stepGrid.gap,
+                    minWidth: stepGrid.minGridPx,
                   }}>
                     {layer.pattern.map((hit, stepIdx) => {
-                      const beatStride = stepsPerBar === 16 ? 4 : 2;
                       const onBeat = stepIdx % beatStride === 0;
                       const isPlayheadHit =
                         loopPlaying &&
@@ -544,7 +688,7 @@ export function LoopBuilder({
                           flexDirection: 'column',
                           gap: 3,
                           minWidth: 0,
-                          padding: '5px 4px 6px',
+                          padding: stepGrid.cellPad,
                           borderRadius: 2,
                           background: isPlayheadHit
                             ? 'var(--panel)'
@@ -552,19 +696,19 @@ export function LoopBuilder({
                               ? 'var(--panel)'
                               : 'transparent',
                           boxShadow: isPlayheadHit
-                            ? 'inset 0 0 0 2px var(--text)'
+                            ? 'inset 0 0 0 1px rgba(18, 21, 26, 0.28)'
                             : onBeat
                               ? 'inset 0 0 0 1px var(--border)'
                               : 'none',
-                          transition: 'box-shadow 0.05s ease, background 0.05s ease',
+                          transition: 'box-shadow 0.08s ease, background 0.08s ease',
                         }}
                       >
                         <span style={{
-                          fontSize: 8,
-                          color: isPlayheadHit ? 'var(--text)' : onBeat ? 'var(--text)' : 'var(--faint)',
+                          fontSize: stepGrid.labelFs,
+                          color: isPlayheadHit ? 'var(--muted)' : onBeat ? 'var(--text)' : 'var(--faint)',
                           fontFamily: "'IBM Plex Mono', monospace",
                           textAlign: 'center',
-                          fontWeight: isPlayheadHit || onBeat ? 600 : 400,
+                          fontWeight: isPlayheadHit ? 500 : onBeat ? 600 : 400,
                         }}>
                           {stepIdx + 1}
                         </span>
@@ -758,19 +902,6 @@ const meterLabelStyle: CSSProperties = {
   ...labelStyle,
   gap: 6,
 };
-
-function segBtn(active: boolean): CSSProperties {
-  return {
-    padding: '5px 10px',
-    borderRadius: 2,
-    border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
-    background: active ? 'var(--text)' : 'transparent',
-    color: active ? 'var(--surface)' : 'var(--muted)',
-    fontFamily: "'IBM Plex Mono', monospace",
-    fontSize: 10,
-    cursor: 'pointer',
-  };
-}
 
 const miniBtn: CSSProperties = {
   padding: '4px 10px',

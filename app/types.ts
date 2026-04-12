@@ -1,4 +1,4 @@
-export type DetectionMethod = 'transient' | 'rms' | 'beat' | 'equal';
+export type DetectionMethod = 'transient' | 'rms' | 'beat' | 'equal' | 'manual';
 export type NamingScheme = 'index' | 'hex';
 export type BeatDivision = '1' | '2' | '4' | '8' | '16';
 
@@ -45,6 +45,9 @@ export interface AudioInfo {
   channels: number;
   fileName: string;
 }
+
+/** Step count for one bar in the loop sequencer (grid resolution). */
+export type StepsPerBar = 8 | 16 | 32;
 
 /** BPM is quarter-note based (common DAW convention). Bar length = f(numerator, denominator). */
 export type TimeSignature =

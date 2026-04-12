@@ -1,7 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import type { DetectionMethod, NamingScheme, BeatDivision, DetectionSettings, FadeSettings, NamingSettings } from '../types';
+import { fmtTime } from '../lib/audio';
 
 interface SidebarProps {
   detection: DetectionSettings;
@@ -15,6 +16,18 @@ interface SidebarProps {
   onFileLoad: (file: File) => void;
   onAnalyze: () => void;
   onClear: () => void;
+  /** When slices exist: clear them but keep the loaded file (undo Apply). */
+  hasAppliedSlices?: boolean;
+  onClearAppliedSlices?: () => void;
+  /** Manual marker mode: list / clear cuts (seconds along the file). */
+  manualCutTimes?: number[];
+  onRemoveManualCut?: (index: number) => void;
+  onClearManualCuts?: () => void;
+  audioDurationSec?: number | null;
+  manualRegionStartSec?: number;
+  manualRegionEndSec?: number;
+  onManualRegionStartChange?: (sec: number) => void;
+  onManualRegionEndChange?: (sec: number) => void;
 }
 
 const label = (text: string) => (
@@ -45,6 +58,7 @@ const METHOD_HELP: Record<DetectionMethod, string> = {
   rms: 'RMS gate; lower dB = more sensitive.',
   beat: 'Slices on a BPM × division grid.',
   equal: 'Equal-length chops, no transient hunt.',
+  manual: 'Set where exported audio begins and ends, add optional cuts between, then Apply slices.',
 };
 
 const Divider = () => (
@@ -96,15 +110,50 @@ function SliderRow({ labelText, value, min, max, step = 1, display, hintText, on
 
 const DIV_LABELS: Record<string, string> = { '1': '1/1', '2': '1/2', '4': '1/4', '8': '1/8', '16': '1/16' };
 
+const manualCutRemoveBtn: CSSProperties = {
+  padding: '2px 8px',
+  borderRadius: 2,
+  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  color: 'var(--muted)',
+  fontFamily: "'IBM Plex Mono', monospace",
+  fontSize: 9,
+  cursor: 'pointer',
+  flexShrink: 0,
+};
+
+/** Must match MIN_MANUAL_REGION_SPAN in useAudioEngine */
+const MANUAL_REGION_GAP_SEC = 0.05;
+
 export function Sidebar({
   detection, fade, naming,
   canAnalyze, canClear,
   onDetectionChange, onFadeChange, onNamingChange,
   onFileLoad, onAnalyze, onClear,
+  hasAppliedSlices = false,
+  onClearAppliedSlices,
+  manualCutTimes = [],
+  onRemoveManualCut,
+  onClearManualCuts,
+  audioDurationSec = null,
+  manualRegionStartSec = 0,
+  manualRegionEndSec = 0,
+  onManualRegionStartChange,
+  onManualRegionEndChange,
 }: SidebarProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const [dragOver, setDragOver] = useState(false);
+
+  const durSec = audioDurationSec ?? 0;
+  const manualStartSliderVal =
+    durSec > 0
+      ? Math.max(0, Math.min(manualRegionStartSec, manualRegionEndSec - MANUAL_REGION_GAP_SEC))
+      : 0;
+  const manualEndSliderVal =
+    durSec > 0
+      ? Math.min(durSec, Math.max(manualRegionEndSec, manualRegionStartSec + MANUAL_REGION_GAP_SEC))
+      : 0;
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -216,9 +265,108 @@ export function Sidebar({
           <option value="rms">RMS energy threshold</option>
           <option value="beat">Beat / BPM grid</option>
           <option value="equal">Equal divisions</option>
+          <option value="manual">Manual markers</option>
         </select>
         {hint(METHOD_HELP[detection.method])}
       </div>
+
+      {detection.method === 'manual' && audioDurationSec != null && audioDurationSec > 0 && (
+        <div>
+          {label('Slice region')}
+          {hint('First slice starts at “Start”; last slice ends at “End”. Cuts on the waveform only fall inside this window.')}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'IBM Plex Mono', monospace" }}>Start (s)</span>
+                <span style={{ fontSize: 11, color: 'var(--text)', fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {manualRegionStartSec.toFixed(2)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={durSec}
+                step={0.01}
+                value={manualStartSliderVal}
+                onChange={e => onManualRegionStartChange?.(Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'IBM Plex Mono', monospace" }}>End (s)</span>
+                <span style={{ fontSize: 11, color: 'var(--text)', fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {manualRegionEndSec.toFixed(2)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={durSec}
+                step={0.01}
+                value={manualEndSliderVal}
+                onChange={e => onManualRegionEndChange?.(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          {label('Manual cuts')}
+          {manualCutTimes.length === 0 ? (
+            hint('Click the waveform to add cuts between Start and End. Shift+click removes the nearest cut.')
+          ) : (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 8 }}>
+                {manualCutTimes.map((t, i) => (
+                  <div
+                    key={`${i}-${t.toFixed(4)}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      minWidth: 0,
+                    }}
+                  >
+                    <span style={{
+                      fontSize: 10,
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      color: 'var(--text)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      #{i + 1} · {fmtTime(t)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveManualCut?.(i)}
+                      style={manualCutRemoveBtn}
+                      title="Remove this cut"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => onClearManualCuts?.()}
+                style={{
+                  width: '100%',
+                  padding: '6px 10px',
+                  borderRadius: 2,
+                  border: '1px dashed var(--border2)',
+                  background: 'transparent',
+                  color: 'var(--muted)',
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  fontSize: 10,
+                  cursor: 'pointer',
+                }}
+              >
+                Clear all cuts
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Transient controls */}
       {detection.method === 'transient' && (
@@ -371,45 +519,70 @@ export function Sidebar({
       <div style={{
         flexShrink: 0,
         display: 'flex',
-        gap: 6,
+        flexDirection: 'column',
+        gap: 8,
         padding: '10px 14px 14px',
         borderTop: '1px solid var(--border)',
         background: 'var(--surface)',
       }}>
-        <button
-          onClick={onAnalyze}
-          disabled={!canAnalyze}
-          style={{
-            flex: 1,
-            padding: '7px 12px',
-            borderRadius: 2,
-            border: '1px solid var(--text)',
-            background: canAnalyze ? 'var(--text)' : 'var(--border)',
-            color: canAnalyze ? 'var(--surface)' : 'var(--faint)',
-            fontFamily: "'IBM Plex Mono', monospace",
-            fontSize: 11,
-            cursor: canAnalyze ? 'pointer' : 'not-allowed',
-            letterSpacing: 0.5,
-          }}
-        >
-          Analyze
-        </button>
-        <button
-          onClick={onClear}
-          disabled={!canClear}
-          style={{
-            padding: '7px 12px',
-            borderRadius: 2,
-            border: '1px solid var(--border)',
-            background: 'var(--surface)',
-            color: canClear ? 'var(--text)' : 'var(--faint)',
-            fontFamily: "'IBM Plex Mono', monospace",
-            fontSize: 11,
-            cursor: canClear ? 'pointer' : 'not-allowed',
-          }}
-        >
-          Clear
-        </button>
+        {hasAppliedSlices && onClearAppliedSlices ? (
+          <button
+            type="button"
+            onClick={onClearAppliedSlices}
+            title="Remove detected slices but keep the loaded file"
+            style={{
+              width: '100%',
+              padding: '6px 12px',
+              borderRadius: 2,
+              border: '1px dashed var(--border2)',
+              background: 'transparent',
+              color: 'var(--muted)',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 10,
+              cursor: 'pointer',
+              letterSpacing: 0.3,
+            }}
+          >
+            Clear slices
+          </button>
+        ) : null}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={onAnalyze}
+            disabled={!canAnalyze}
+            style={{
+              flex: 1,
+              padding: '7px 12px',
+              borderRadius: 2,
+              border: '1px solid var(--text)',
+              background: canAnalyze ? 'var(--text)' : 'var(--border)',
+              color: canAnalyze ? 'var(--surface)' : 'var(--faint)',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 11,
+              cursor: canAnalyze ? 'pointer' : 'not-allowed',
+              letterSpacing: 0.5,
+            }}
+          >
+            {detection.method === 'manual' ? 'Apply slices' : 'Analyze'}
+          </button>
+          <button
+            onClick={onClear}
+            disabled={!canClear}
+            title="Unload file and reset project"
+            style={{
+              padding: '7px 12px',
+              borderRadius: 2,
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: canClear ? 'var(--text)' : 'var(--faint)',
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: 11,
+              cursor: canClear ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Clear all
+          </button>
+        </div>
       </div>
     </div>
   );

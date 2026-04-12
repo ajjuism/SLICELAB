@@ -12,6 +12,11 @@ interface WaveformProps {
   sliceCount: number;
   /** Live playhead + optional slice highlight (preview playback). */
   playback?: WaveformPlaybackOverlay | null;
+  /** When set, click adds a cut; Shift+click removes nearest cut. */
+  manualMode?: boolean;
+  /** Region bounds (manual mode); interior cuts are in `markers`. */
+  manualRegionSec?: { start: number; end: number } | null;
+  onManualWaveformPointer?: (timeSec: number, shiftKey: boolean) => void;
 }
 
 const METHOD_LABELS: Record<DetectionMethod, string> = {
@@ -19,6 +24,7 @@ const METHOD_LABELS: Record<DetectionMethod, string> = {
   rms: 'rms energy',
   beat: 'beat grid',
   equal: 'equal div',
+  manual: 'manual markers',
 };
 
 function overlayFromPlayback(p: WaveformPlaybackOverlay | null | undefined): WaveformPlaybackOverlay | null {
@@ -29,19 +35,43 @@ function overlayFromPlayback(p: WaveformPlaybackOverlay | null | undefined): Wav
   };
 }
 
-export function Waveform({ audioBuffer, audioInfo, markers, method, sliceCount, playback }: WaveformProps) {
+export function Waveform({
+  audioBuffer,
+  audioInfo,
+  markers,
+  method,
+  sliceCount,
+  playback,
+  manualMode,
+  manualRegionSec = null,
+  onManualWaveformPointer,
+}: WaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const playbackRef = useRef(playback);
   playbackRef.current = playback;
 
   const redraw = useCallback(() => {
     if (!canvasRef.current) return;
-    drawWaveform(canvasRef.current, audioBuffer.current, markers, overlayFromPlayback(playbackRef.current));
-  }, [audioBuffer, markers]);
+    const region =
+      manualRegionSec != null ? { start: manualRegionSec.start, end: manualRegionSec.end } : null;
+    drawWaveform(
+      canvasRef.current,
+      audioBuffer.current,
+      markers,
+      overlayFromPlayback(playbackRef.current),
+      region,
+    );
+  }, [audioBuffer, markers, manualRegionSec?.start, manualRegionSec?.end]);
 
   useEffect(() => {
     redraw();
-  }, [redraw, playback?.playheadSec, playback?.highlightBetweenSec]);
+  }, [
+    redraw,
+    playback?.playheadSec,
+    playback?.highlightBetweenSec,
+    manualRegionSec?.start,
+    manualRegionSec?.end,
+  ]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -79,6 +109,28 @@ export function Waveform({ audioBuffer, audioInfo, markers, method, sliceCount, 
 
       <canvas
         ref={canvasRef}
+        role={manualMode ? 'button' : undefined}
+        aria-label={
+          manualMode
+            ? 'Waveform — click to add a cut; Shift+click removes the nearest cut; use the sidebar to remove or clear cuts'
+            : undefined
+        }
+        onClick={
+          manualMode && onManualWaveformPointer && audioInfo
+            ? e => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const buf = audioBuffer.current;
+                if (!buf) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const w = canvas.offsetWidth;
+                if (w <= 0) return;
+                const t = (x / w) * buf.duration;
+                onManualWaveformPointer(t, e.shiftKey);
+              }
+            : undefined
+        }
         style={{
           width: '100%',
           height: 110,
@@ -86,6 +138,7 @@ export function Waveform({ audioBuffer, audioInfo, markers, method, sliceCount, 
           borderRadius: 2,
           border: '1px solid var(--border)',
           display: 'block',
+          cursor: manualMode ? 'crosshair' : 'default',
         }}
       />
 
@@ -101,6 +154,18 @@ export function Waveform({ audioBuffer, audioInfo, markers, method, sliceCount, 
           </div>
         ))}
       </div>
+      {manualMode && audioInfo ? (
+        <p style={{
+          margin: '8px 0 0',
+          fontSize: 8,
+          lineHeight: 1.45,
+          color: 'var(--faint)',
+          fontFamily: "'IBM Plex Mono', monospace",
+          letterSpacing: 0.1,
+        }}>
+          Set Start/End in the sidebar for where exports begin and end · click to add cuts between them · Shift+click removes nearest
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -2,9 +2,19 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react';
 import JSZip from 'jszip';
-import type { Slice, DetectionSettings, FadeSettings, NamingSettings, AudioInfo, TimeSignature } from '../types';
+import type {
+  Slice,
+  DetectionSettings,
+  FadeSettings,
+  NamingSettings,
+  AudioInfo,
+  TimeSignature,
+  StepsPerBar,
+} from '../types';
 import {
   detectSlices,
+  slicesFromManualCuts,
+  type ManualSliceRegion,
   sliceToAudioBuffer,
   buildLayeredDrumPatternBuffer,
   bufferToWav,
@@ -20,6 +30,20 @@ export function useAudioEngine() {
 
   const [audioInfo, setAudioInfo] = useState<AudioInfo | null>(null);
   const [slices, setSlices] = useState<Slice[]>([]);
+  /** Interior cut times (seconds) for manual marker mode. */
+  const [manualCutTimes, setManualCutTimes] = useState<number[]>([]);
+  const manualCutTimesRef = useRef<number[]>([]);
+  manualCutTimesRef.current = manualCutTimes;
+
+  /** Export window: first slice starts at startSec; last slice ends at endSec (full file by default). */
+  const [manualRegionStartSec, setManualRegionStartSec] = useState(0);
+  const [manualRegionEndSec, setManualRegionEndSec] = useState(0);
+  const manualRegionStartRef = useRef(0);
+  const manualRegionEndRef = useRef(0);
+  manualRegionStartRef.current = manualRegionStartSec;
+  manualRegionEndRef.current = manualRegionEndSec;
+
+  const MIN_MANUAL_REGION_SPAN = 0.05;
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const [loopPlaying, setLoopPlaying] = useState(false);
   /** Current step index within the bar while the loop is playing (for UI playhead). */
@@ -71,6 +95,9 @@ export function useAudioEngine() {
         fileName: file.name.length > 32 ? file.name.slice(0, 30) + '…' : file.name,
       });
       setSlices([]);
+      setManualCutTimes([]);
+      setManualRegionStartSec(0);
+      setManualRegionEndSec(buffer.duration);
       setProgress(100);
       setTimeout(() => setProgress(0), 500);
       setStatus(`Loaded · ${buffer.duration.toFixed(2)}s · ${buffer.sampleRate}Hz · ${buffer.numberOfChannels}ch`);
@@ -83,23 +110,121 @@ export function useAudioEngine() {
     }
   }, [getCtx]);
 
+  const addManualCut = useCallback((timeSec: number) => {
+    const buf = audioBufferRef.current;
+    if (!buf) return;
+    const dur = buf.duration;
+    const rs = manualRegionStartRef.current;
+    const re = manualRegionEndRef.current;
+    const span = re - rs;
+    const pad = Math.max(0.008, Math.min(0.04, span * 0.02));
+    const t = Math.max(rs + pad, Math.min(re - pad, timeSec));
+    setManualCutTimes(prev => {
+      const merged = [...prev, t].sort((a, b) => a - b);
+      const out: number[] = [];
+      for (const x of merged) {
+        if (out.length === 0 || x - out[out.length - 1] >= 0.022) out.push(x);
+      }
+      return out;
+    });
+  }, []);
+
+  /** Remove the single cut closest to `timeSec` if within reach (waveform Shift+click). */
+  const removeManualCutNear = useCallback((timeSec: number) => {
+    const buf = audioBufferRef.current;
+    if (!buf) return;
+    setManualCutTimes(prev => {
+      if (prev.length === 0) return prev;
+      let bestI = -1;
+      let bestD = Infinity;
+      for (let i = 0; i < prev.length; i++) {
+        const d = Math.abs(prev[i] - timeSec);
+        if (d < bestD) {
+          bestD = d;
+          bestI = i;
+        }
+      }
+      const maxReach = Math.max(0.055, buf.duration * 0.014);
+      if (bestI < 0 || bestD > maxReach) return prev;
+      return prev.filter((_, i) => i !== bestI);
+    });
+  }, []);
+
+  const removeManualCutAtIndex = useCallback((index: number) => {
+    setManualCutTimes(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const clearManualCuts = useCallback(() => {
+    setManualCutTimes([]);
+  }, []);
+
+  const setManualRegionStart = useCallback((startSec: number) => {
+    const buf = audioBufferRef.current;
+    if (!buf) return;
+    const dur = buf.duration;
+    const re = manualRegionEndRef.current;
+    let rs = Math.max(0, Math.min(startSec, dur));
+    rs = Math.min(rs, re - MIN_MANUAL_REGION_SPAN);
+    setManualRegionStartSec(rs);
+    setManualCutTimes(prev =>
+      prev.filter(c => c > rs + 0.015 && c < re - 0.015),
+    );
+  }, []);
+
+  const setManualRegionEnd = useCallback((endSec: number) => {
+    const buf = audioBufferRef.current;
+    if (!buf) return;
+    const dur = buf.duration;
+    const rs = manualRegionStartRef.current;
+    let re = Math.max(0, Math.min(endSec, dur));
+    re = Math.max(re, rs + MIN_MANUAL_REGION_SPAN);
+    setManualRegionEndSec(re);
+    setManualCutTimes(prev =>
+      prev.filter(c => c > rs + 0.015 && c < re - 0.015),
+    );
+  }, []);
+
   const analyze = useCallback((
     detection: DetectionSettings,
     fade: FadeSettings,
     naming: NamingSettings,
   ) => {
     if (!audioBufferRef.current) return;
-    setStatus('Analyzing…');
+    setStatus(detection.method === 'manual' ? 'Applying slices…' : 'Analyzing…');
     setStatusActive(true);
     setProgress(30);
 
     setTimeout(() => {
       try {
-        const result = detectSlices(audioBufferRef.current!, detection, fade, naming);
+        const buf = audioBufferRef.current!;
+        let result: Slice[];
+        if (detection.method === 'manual') {
+          const cuts = manualCutTimesRef.current;
+          const region: ManualSliceRegion = {
+            startSec: manualRegionStartRef.current,
+            endSec: manualRegionEndRef.current,
+          };
+          result = slicesFromManualCuts(buf, cuts, fade, naming, region);
+          if (result.length === 0) {
+            setStatus('Could not build slices — widen the slice region or adjust cuts');
+            setStatusActive(false);
+            setProgress(0);
+            return;
+          }
+          setManualRegionStartSec(result[0].start);
+          setManualRegionEndSec(result[result.length - 1].end);
+          setManualCutTimes(result.slice(1).map(s => s.start));
+        } else {
+          result = detectSlices(buf, detection, fade, naming);
+        }
         setSlices(result);
         setProgress(100);
         setTimeout(() => setProgress(0), 500);
-        setStatus(`${result.length} slices detected — click to preview, download zip when ready`);
+        setStatus(
+          detection.method === 'manual'
+            ? `${result.length} slices from manual markers — preview or download zip`
+            : `${result.length} slices detected — click to preview, download zip when ready`,
+        );
         setStatusActive(false);
       } catch {
         setStatus('Analysis failed');
@@ -182,10 +307,12 @@ export function useAudioEngine() {
   const playLoop = useCallback((
     layers: (number | null)[][],
     layerMutes: boolean[],
+    layerPitchSemitones: number[],
     bpm: number,
-    stepsPerBar: 8 | 16,
+    stepsPerBar: StepsPerBar,
     swingPercent: number,
     timeSignature: TimeSignature,
+    trimSamplesToStep = true,
   ) => {
     if (!audioBufferRef.current) return;
     const ctx = getCtx();
@@ -212,6 +339,8 @@ export function useAudioEngine() {
       swingPercent,
       timeSignature,
       ctx,
+      trimSamplesToStep,
+      layerPitchSemitones,
     );
     if (!bar || bar.length === 0) return;
 
@@ -233,10 +362,12 @@ export function useAudioEngine() {
   const downloadLoopWav = useCallback((
     layers: (number | null)[][],
     layerMutes: boolean[],
+    layerPitchSemitones: number[],
     bpm: number,
-    stepsPerBar: 8 | 16,
+    stepsPerBar: StepsPerBar,
     swingPercent: number,
     timeSignature: TimeSignature,
+    trimSamplesToStep = true,
   ) => {
     if (!audioBufferRef.current) return;
     const ctx = getCtx();
@@ -252,6 +383,8 @@ export function useAudioEngine() {
       swingPercent,
       timeSignature,
       ctx,
+      trimSamplesToStep,
+      layerPitchSemitones,
     );
     if (!bar || bar.length === 0) return;
 
@@ -368,15 +501,43 @@ export function useAudioEngine() {
     audioBufferRef.current = null;
     setAudioInfo(null);
     setSlices([]);
+    setManualCutTimes([]);
+    setManualRegionStartSec(0);
+    setManualRegionEndSec(0);
     setStatus('Ready — drop a file to begin');
     setStatusActive(false);
     setProgress(0);
   }, [stopLoop, stopPlayback]);
 
+  /** Remove applied slices but keep the loaded file (e.g. undo Apply in manual mode). Resets manual draft to full file, no cuts. */
+  const clearAppliedSlices = useCallback(() => {
+    stopPlayback();
+    setSlices([]);
+    setManualCutTimes([]);
+    const buf = audioBufferRef.current;
+    if (buf) {
+      setManualRegionStartSec(0);
+      setManualRegionEndSec(buf.duration);
+      setStatus('Slices cleared — adjust region or markers on the waveform, then Apply again');
+    } else {
+      setStatus('Ready — drop a file to begin');
+    }
+    setStatusActive(false);
+  }, [stopPlayback]);
+
   return {
     audioBuffer: audioBufferRef,
     audioInfo,
     slices,
+    manualCutTimes,
+    manualRegionStartSec,
+    manualRegionEndSec,
+    setManualRegionStart,
+    setManualRegionEnd,
+    addManualCut,
+    removeManualCutNear,
+    removeManualCutAtIndex,
+    clearManualCuts,
     playingIndex,
     loopPlaying,
     loopPlayheadStep,
@@ -396,5 +557,7 @@ export function useAudioEngine() {
     stopPlayback,
     downloadZip,
     clear,
+    clearAppliedSlices,
   };
 }
+
