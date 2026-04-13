@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { ThemeToggle } from './ThemeToggle';
 
-export type MainTab = 'slices' | 'loops' | 'grain';
+export type MainTab = 'slices' | 'loops' | 'grain' | 'oneshots';
 
 interface TopbarProps {
   fileName: string;
@@ -135,6 +135,21 @@ export function Topbar({
             }}
           >
             Grains
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'oneshots'}
+            onClick={() => onTabChange('oneshots')}
+            disabled={!hasSlices}
+            title="Combine slices into a single layered or sequential hit"
+            style={{
+              ...tabBtn(tab === 'oneshots'),
+              opacity: hasSlices ? 1 : 0.45,
+              cursor: hasSlices ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Oneshots
           </button>
         </div>
       </div>

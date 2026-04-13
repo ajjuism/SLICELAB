@@ -14,6 +14,7 @@ export type ProjectManifest = {
     samplesZip: number;
     loopWav: number;
     grainWav: number;
+    oneshotWav: number;
   };
 };
 
@@ -23,6 +24,7 @@ const defaultManifest = (): ProjectManifest => ({
     samplesZip: 0,
     loopWav: 0,
     grainWav: 0,
+    oneshotWav: 0,
   },
 });
 
@@ -110,12 +112,13 @@ async function ensureNestedDir(
   return h;
 }
 
-/** Creates source/, exports/samples/, exports/loops/, exports/grains/ and writes project.json if missing. */
+/** Creates source/, exports/samples/, exports/loops/, exports/grains/, exports/oneshots/ and writes project.json if missing. */
 export async function ensureProjectLayout(root: FileSystemDirectoryHandle): Promise<void> {
   await ensureNestedDir(root, 'source');
   await ensureNestedDir(root, 'exports/samples');
   await ensureNestedDir(root, 'exports/loops');
   await ensureNestedDir(root, 'exports/grains');
+  await ensureNestedDir(root, 'exports/oneshots');
 
   let hasManifest = false;
   try {
@@ -138,7 +141,11 @@ async function readManifest(root: FileSystemDirectoryHandle): Promise<ProjectMan
     const file = await fh.getFile();
     const text = await file.text();
     const parsed = JSON.parse(text) as ProjectManifest;
-    if (parsed?.version === 1 && parsed.counters) return parsed;
+    if (parsed?.version === 1 && parsed.counters) {
+      const c = parsed.counters;
+      if (typeof c.oneshotWav !== 'number') c.oneshotWav = 0;
+      return parsed;
+    }
   } catch {
     /* new */
   }
@@ -199,7 +206,7 @@ export async function saveSourceFileCopy(
   }
 }
 
-export type ExportKind = 'samplesZip' | 'loopWav' | 'grainWav';
+export type ExportKind = 'samplesZip' | 'loopWav' | 'grainWav' | 'oneshotWav';
 
 export async function saveExportFile(
   root: FileSystemDirectoryHandle,
@@ -213,7 +220,9 @@ export async function saveExportFile(
         ? 'exports/samples'
         : kind === 'loopWav'
           ? 'exports/loops'
-          : 'exports/grains';
+          : kind === 'grainWav'
+            ? 'exports/grains'
+            : 'exports/oneshots';
     const ext = kind === 'samplesZip' ? 'zip' : 'wav';
     manifest.counters[kind] += 1;
     const num = manifest.counters[kind];
@@ -222,7 +231,9 @@ export async function saveExportFile(
         ? 'slicelab_samples'
         : kind === 'loopWav'
           ? 'slicelab_loop'
-          : 'slicelab_grain';
+          : kind === 'grainWav'
+            ? 'slicelab_grain'
+            : 'slicelab_oneshot';
     const fileName = `${base}_${String(num).padStart(3, '0')}.${ext}`;
 
     const dir = await ensureNestedDir(root, sub);

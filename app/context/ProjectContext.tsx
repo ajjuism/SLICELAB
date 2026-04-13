@@ -80,6 +80,7 @@ type Ctx = {
   trySaveZip: (blob: Blob) => Promise<boolean>;
   trySaveLoop: (blob: Blob) => Promise<boolean>;
   trySaveGrain: (blob: Blob) => Promise<boolean>;
+  trySaveOneshot: (blob: Blob) => Promise<boolean>;
   onSourceFileLoaded: (file: File) => Promise<void>;
   /** For onboarding modal visibility */
   showOnboarding: boolean;
@@ -247,6 +248,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     [root, mode, folderName, pushSaveNotice],
   );
 
+  const trySaveOneshot = useCallback(
+    async (blob: Blob) => {
+      if (!root || mode !== 'folder') return false;
+      const r = await saveExportFile(root, 'oneshotWav', blob);
+      if (r.ok) pushSaveNotice(folderName, r.relativePath, 'Oneshot WAV');
+      return r.ok;
+    },
+    [root, mode, folderName, pushSaveNotice],
+  );
+
   const onSourceFileLoaded = useCallback(
     async (file: File) => {
       if (!root || mode !== 'folder') return;
@@ -289,6 +300,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       trySaveZip,
       trySaveLoop,
       trySaveGrain,
+      trySaveOneshot,
       onSourceFileLoaded,
       showOnboarding: supported && showOnboarding,
       dismissOnboarding,
@@ -309,6 +321,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       trySaveZip,
       trySaveLoop,
       trySaveGrain,
+      trySaveOneshot,
       onSourceFileLoaded,
       dismissOnboarding,
       promptProjectSetup,

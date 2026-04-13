@@ -36,6 +36,11 @@
   --wave-region-end-fill: rgba(72, 98, 122, 0.95);
   --wave-playhead: rgba(18, 21, 26, 0.85);
   --wave-mini-stroke: #5c6470;
+  /* Oneshot waveforms: flush with page chrome (no separate tint) */
+  --wave-oneshot-bg: var(--bg);
+  --wave-oneshot-mid: rgba(92, 100, 112, 0.2);
+  --wave-oneshot-stroke: #6e7788;
+  --wave-oneshot-trim-mute: rgba(18, 21, 26, 0.1);
   /* Grain scope canvas */
   --grain-scope-border: #dde2ea;
   --grain-scope-bg: #ffffff;
@@ -77,6 +82,10 @@ html.dark {
   --wave-region-end-fill: rgba(120, 175, 220, 0.85);
   --wave-playhead: rgba(245, 246, 248, 0.96);
   --wave-mini-stroke: #8b929e;
+  --wave-oneshot-bg: var(--bg);
+  --wave-oneshot-mid: rgba(236, 238, 242, 0.06);
+  --wave-oneshot-stroke: #9aa3b2;
+  --wave-oneshot-trim-mute: rgba(0, 0, 0, 0.42);
   --grain-scope-border: #1c1c20;
   --grain-scope-bg: #050505;
   --grain-scope-grid-major: rgba(236, 238, 242, 0.055);

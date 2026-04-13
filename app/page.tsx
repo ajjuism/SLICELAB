@@ -11,6 +11,7 @@ import { Waveform } from './components/Waveform';
 import { SliceGrid } from './components/SliceGrid';
 import { LoopBuilder } from './components/LoopBuilder';
 import { GrainMode } from './components/GrainMode';
+import { OneshotsMode } from './components/OneshotsMode';
 import { StatusBar } from './components/StatusBar';
 import { HelpInstructions } from './components/HelpInstructions';
 import { ProjectOnboarding } from './components/ProjectOnboarding';
@@ -51,8 +52,8 @@ function HomeInner() {
   }, [engine.slices.length]);
 
   useEffect(() => {
-    if (tab === 'grain') engine.stopPlayback();
-  }, [tab, engine.stopPlayback]); // stop slice/loop preview when opening Grain (stable ref from hook)
+    if (tab === 'grain' || tab === 'oneshots') engine.stopPlayback();
+  }, [tab, engine.stopPlayback]); // stop slice/loop preview when opening Grain / Oneshots
 
   return (
     <>
@@ -169,12 +170,21 @@ function HomeInner() {
               onPlaySlice={engine.playSlice}
               hasAudio={!!engine.audioInfo}
             />
-          ) : (
+          ) : tab === 'grain' ? (
             <GrainMode
               slices={engine.slices}
               audioBuffer={engine.audioBuffer.current}
               ensureAudioContext={engine.ensureAudioContext}
               onStopOtherAudio={engine.stopPlayback}
+            />
+          ) : (
+            <OneshotsMode
+              slices={engine.slices}
+              audioBuffer={engine.audioBuffer.current}
+              ensureAudioContext={engine.ensureAudioContext}
+              onStopOtherAudio={engine.stopPlayback}
+              playOneshotPreview={engine.playOneshotPreview}
+              playSlice={engine.playSlice}
             />
           )}
         </div>

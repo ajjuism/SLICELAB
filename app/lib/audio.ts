@@ -7,7 +7,7 @@ import type {
   TimeSignature,
 } from '../types';
 
-function waveCssVar(name: string, fallback: string): string {
+export function waveCssVar(name: string, fallback: string): string {
   if (typeof document === 'undefined') return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
@@ -620,11 +620,15 @@ export function drawWaveform(
   }
 }
 
+/** `prominent` — Oneshot previews: filled track, midline, thicker stroke (reads theme CSS vars). */
+export type MiniWaveVisualStyle = 'default' | 'prominent';
+
 export function drawMiniWave(
   canvas: HTMLCanvasElement,
   audioBuffer: AudioBuffer,
   startSample: number,
   endSample: number,
+  visual: MiniWaveVisualStyle = 'default',
 ): void {
   const W = canvas.offsetWidth || 140;
   const H = canvas.offsetHeight || 32;
@@ -633,20 +637,48 @@ export function drawMiniWave(
   const ctx = canvas.getContext('2d')!;
   ctx.clearRect(0, 0, W, H);
 
+  const prominent = visual === 'prominent';
+  if (prominent) {
+    ctx.fillStyle = waveCssVar('--bg', '#f4f6f9');
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = waveCssVar('--wave-oneshot-mid', 'rgba(18, 21, 26, 0.12)');
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, H / 2);
+    ctx.lineTo(W, H / 2);
+    ctx.stroke();
+  }
+
   const data = audioBuffer.getChannelData(0);
   const len = endSample - startSample;
-  const step = Math.ceil(len / W);
-
-  ctx.strokeStyle = waveCssVar('--wave-mini-stroke', '#5c6470');
+  ctx.strokeStyle = prominent
+    ? waveCssVar('--wave-oneshot-stroke', '#6e7788')
+    : waveCssVar('--wave-mini-stroke', '#5c6470');
   ctx.lineWidth = 1;
+  ctx.lineCap = 'butt';
+  if (len <= 0) {
+    ctx.beginPath();
+    ctx.moveTo(0, H / 2);
+    ctx.lineTo(W, H / 2);
+    ctx.stroke();
+    return;
+  }
+  /** Bucket indices [lo, hi) so every sample maps to exactly one column; avoids empty tail columns drawing spurious full-height lines. */
   ctx.beginPath();
   for (let x = 0; x < W; x++) {
-    let min = 1, max = -1;
-    for (let i = 0; i < step; i++) {
-      const s = data[startSample + x * step + i] || 0;
+    const lo = Math.floor((x * len) / W);
+    const hi = Math.floor(((x + 1) * len) / W);
+    if (lo >= hi) continue;
+    let min = 1,
+      max = -1;
+    for (let j = lo; j < hi; j++) {
+      const idx = startSample + j;
+      if (idx >= endSample) break;
+      const s = data[idx] ?? 0;
       if (s < min) min = s;
       if (s > max) max = s;
     }
+    if (max < min) continue;
     ctx.moveTo(x, (H / 2) * (1 + min));
     ctx.lineTo(x, (H / 2) * (1 + max));
   }

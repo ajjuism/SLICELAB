@@ -520,6 +520,43 @@ export function useAudioEngine() {
     previewSliceRef.current = null;
   }, [stopLoop]);
 
+  /** One-shot preview of an arbitrary buffer (e.g. oneshot composite). Does not loop. */
+  const playOneshotPreview = useCallback(
+    (buffer: AudioBuffer) => {
+      const ctx = getCtx();
+      void (async () => {
+        try {
+          if (ctx.state === 'suspended') await ctx.resume();
+        } catch {
+          /* ok */
+        }
+        stopLoop();
+        if (currentSourceRef.current) {
+          try {
+            currentSourceRef.current.stop();
+          } catch {
+            /* ok */
+          }
+        }
+        setPlayingIndex(null);
+        setWaveformPlayheadSec(null);
+        setWaveformHighlightSec(null);
+        previewStartRef.current = null;
+        previewSliceRef.current = null;
+
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(ctx.destination);
+        src.start(ctx.currentTime);
+        src.onended = () => {
+          if (currentSourceRef.current === src) currentSourceRef.current = null;
+        };
+        currentSourceRef.current = src;
+      })();
+    },
+    [getCtx, stopLoop],
+  );
+
   const downloadZip = useCallback(async () => {
     if (!audioBufferRef.current || slices.length === 0) return;
     const ctx = getCtx();
@@ -612,6 +649,7 @@ export function useAudioEngine() {
     downloadLoopWav,
     stopLoop,
     stopPlayback,
+    playOneshotPreview,
     downloadZip,
     clear,
     clearAppliedSlices,
