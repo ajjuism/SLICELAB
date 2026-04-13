@@ -19,14 +19,16 @@ function HelpIcon() {
   );
 }
 
-type HelpSectionId = 'overview' | 'slice' | 'loop' | 'grain' | 'files';
+type HelpSectionId = 'overview' | 'slice' | 'loop' | 'grain' | 'oneshots' | 'files' | 'about';
 
 const NAV_ITEMS: { id: HelpSectionId; title: string; desc: string }[] = [
   { id: 'overview', title: 'Overview', desc: 'Layout & workflow' },
   { id: 'slice', title: 'Slice workspace', desc: 'Detect & export' },
   { id: 'loop', title: 'Loops', desc: 'Sequencer & layers' },
   { id: 'grain', title: 'Grains', desc: 'Cloud, space & EQ' },
+  { id: 'oneshots', title: 'Oneshots', desc: 'Combine & batch' },
   { id: 'files', title: 'Files & privacy', desc: 'Formats & safety' },
+  { id: 'about', title: 'About', desc: 'Credits & contact' },
 ];
 
 function PanelOverview() {
@@ -44,8 +46,9 @@ function PanelOverview() {
         <ul className="help-checks">
           <li>
             <strong>Top row</strong> — See which file is loaded, switch between <strong>Slices</strong>,{' '}
-            <strong>Loops</strong>, and <strong>Grains</strong> (texture player; all need slices first). When
-            slices exist, use <strong>Download zip</strong> to save all WAVs in one go.
+            <strong>Loops</strong>, <strong>Grains</strong>, and <strong>Oneshots</strong> (combine slices into one-shots;
+            needs at least two slices). When slices exist, use <strong>Download zip</strong> on the Slices tab to save all
+            WAVs in one go.
           </li>
           <li>
             <strong>Left column</strong> — Load and replace audio, set how slices are detected (or draw them in manual
@@ -56,8 +59,8 @@ function PanelOverview() {
           <li>
             <strong>Main area</strong> — The waveform shows boundaries; in manual mode before you apply, look for region
             markers <strong>S</strong> / <strong>E</strong> and any cuts you added. Underneath you either preview each
-            slice as cards, build a loop on the <strong>Loops</strong> tab, or open <strong>Grains</strong> for
-            granular playback and effects.
+            slice as cards, build a loop on the <strong>Loops</strong> tab, open <strong>Grains</strong> for granular
+            playback and effects, or <strong>Oneshots</strong> to layer or sequence slices into composite WAVs.
           </li>
         </ul>
       </div>
@@ -78,7 +81,74 @@ function PanelOverview() {
             For sustained textures: open <strong>Grains</strong>, start the grain cloud, tweak Cloud and Space, use the
             parametric EQ if you like, then <strong>Record to WAV</strong> to capture what you hear.
           </li>
+          <li>
+            To merge slices: open <strong>Oneshots</strong>, choose <strong>Layer</strong> (stacked in time) or{' '}
+            <strong>Sequence</strong> (one after another), adjust clips and <strong>Export WAV</strong>, or use{' '}
+            <strong>Batch generate</strong> for many randomized combinations at once.
+          </li>
         </ol>
+      </div>
+    </div>
+  );
+}
+
+function PanelOneshots() {
+  return (
+    <div id="help-panel-oneshots" role="tabpanel" aria-labelledby="help-nav-oneshots">
+      <h3 className="help-pane-title">Oneshots</h3>
+      <p className="help-lead">
+        Build non-looping composites from your slice pool: stack them (<strong>Layer</strong>) or play them in order (
+        <strong>Sequence</strong>). You need at least two slices. Each clip can use trim, reverse, gain, and (in Layer
+        mode) a start offset. <strong>Preview</strong> hears the mix; <strong>Export WAV</strong> saves it—with a
+        connected project folder, exports go under <code className="help-code-inline">exports/oneshots/</code> as
+        numbered files.
+      </p>
+
+      <div className="help-block">
+        <h4>Mix</h4>
+        <ul>
+          <li>
+            <strong>Randomize</strong> — Picks layout (layer vs sequence), clip count (2–6 slices), trims, offsets,
+            reverse, gain, and a random sequence gap. With <strong>Sequence</strong> selected, <strong>Rand</strong>{' '}
+            min–max (ms) bounds only the gap used when Randomize chooses sequence—your main <strong>Gap</strong> field is
+            what you hear for manual preview and export.
+          </li>
+          <li>
+            <strong>Sequence gap</strong> — Milliseconds between clip starts; negative values overlap the previous clip.
+            The engine keeps placements valid so every slice in the list stays audible.
+          </li>
+          <li>
+            <strong>+ Add clip</strong> — More rows in the mix (minimum two). Each card can solo-play the raw source
+            slice.
+          </li>
+        </ul>
+      </div>
+
+      <div className="help-block">
+        <h4>Batch generate</h4>
+        <ul>
+          <li>
+            <strong>Batch generate</strong> opens a modal: set <strong>max to generate</strong> (how many unique
+            combinations to draw—lower this when you have few slices so you do not get near-duplicate sounds), choose{' '}
+            <strong>Layer</strong> or <strong>Sequence</strong>, and for sequence set a <strong>gap range</strong> (ms);
+            each generated file picks a random gap in that range.
+          </li>
+          <li>
+            <strong>Slices in pool</strong> — Checkboxes include or exclude slices from the random draw; click a slice
+            name to preview it.
+          </li>
+          <li>
+            <strong>Combination order</strong> — Lists sampled plans; <strong>Randomise order</strong> shuffles that
+            list. <strong>Generate</strong> renders each line with the same kind of random trim/gain/reverse behavior as{' '}
+            <strong>Randomize</strong> on the main tab.
+          </li>
+          <li>
+            <strong>Output</strong> — Check which rows to include, then <strong>Download ZIP</strong> — WAVs plus a{' '}
+            <code className="help-code-inline">manifest.json</code> describing slices and settings. With a project
+            folder, batch ZIPs save as numbered <code className="help-code-inline">slicelab_oneshot_batch_NNN.zip</code> in{' '}
+            <code className="help-code-inline">exports/oneshots/</code> (single oneshots use separate numbered WAV names).
+          </li>
+        </ul>
       </div>
     </div>
   );
@@ -392,7 +462,8 @@ function PanelFiles({
               {' '}
               — files go into <code className="help-code-inline">source/</code>,{' '}
               <code className="help-code-inline">exports/samples/</code>, <code className="help-code-inline">exports/loops/</code>,{' '}
-              <code className="help-code-inline">exports/grains/</code>.
+              <code className="help-code-inline">exports/grains/</code>, and{' '}
+              <code className="help-code-inline">exports/oneshots/</code> (composite oneshot WAVs and batch ZIPs).
             </>
           ) : null}
         </p>
@@ -411,8 +482,8 @@ function PanelFiles({
         <ul>
           <li>
             <strong>Project folder</strong> (supported browsers) — On launch you can pick a folder; SliceLab writes{' '}
-            <code>source/</code>, <code>exports/samples/</code>, <code>exports/loops/</code>, and{' '}
-            <code>exports/grains/</code> with numbered files. Otherwise exports use the normal download folder.
+            <code>source/</code>, <code>exports/samples/</code>, <code>exports/loops/</code>, <code>exports/grains/</code>, and{' '}
+            <code>exports/oneshots/</code> with numbered files. Otherwise exports use the normal download folder.
           </li>
           <li>
             <strong>Slice zip</strong> — WAV slices (mono, 16-bit) plus sidecar metadata for DAWs or samplers.
@@ -424,6 +495,14 @@ function PanelFiles({
             <strong>Grain recording</strong> — From the Grains tab, <strong>Record to WAV</strong> saves processed output
             (cloud + space + EQ) as a stereo WAV, up to the app’s recording limit.
           </li>
+          <li>
+            <strong>Oneshot WAV</strong> — From the Oneshots tab, <strong>Export WAV</strong> saves the current composite.
+          </li>
+          <li>
+            <strong>Oneshot batch ZIP</strong> — From <strong>Batch generate</strong>, <strong>Download ZIP</strong> saves
+            selected renders plus <code>manifest.json</code>; with a project folder this is a separate numbered ZIP alongside
+            single oneshot WAVs.
+          </li>
         </ul>
       </div>
 
@@ -432,6 +511,37 @@ function PanelFiles({
         <p>
           Closing or refreshing the page clears in-memory audio unless your browser restores the tab. Download exports
           you need before leaving.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PanelAbout() {
+  return (
+    <div id="help-panel-about" role="tabpanel" aria-labelledby="help-nav-about">
+      <h3 className="help-pane-title">About</h3>
+      <p className="help-lead">
+        SliceLab is built by{' '}
+        <a
+          href="https://www.instagram.com/ajjuism/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="help-inline-link"
+        >
+          @ajjuism
+        </a>
+        .
+      </p>
+      <div className="help-block">
+        <h4>Feedback</h4>
+        <p style={{ marginBottom: 0 }}>
+          I would be glad to hear your feedback and to talk about feature requests—whether something is confusing, you
+          have an idea for the app, or you hit a rough edge. A short note by{' '}
+          <a href="mailto:ajjuism@gmail.com" className="help-inline-link">
+            email
+          </a>{' '}
+          is perfect.
         </p>
       </div>
     </div>
@@ -479,8 +589,8 @@ export function HelpInstructions() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="How to use SliceLab"
-        aria-label="Open instructions"
+        title="Help & about — SliceLab"
+        aria-label="Open help and about"
         style={{
           position: 'fixed',
           right: 18,
@@ -538,8 +648,8 @@ export function HelpInstructions() {
                     <div style={{ minWidth: 0 }}>
                       <h2 id="help-instructions-title">How to use SliceLab</h2>
                       <p id="help-instructions-desc" className="help-instructions-subtitle">
-                        Pick a topic for slicing, the loop sequencer, granular grains (texture + EQ), and exports.
-                        Sections are listed next to this text.
+                        Pick a topic for slicing, the loop sequencer, granular grains, oneshot composites, exports, or
+                        credits & contact. Sections are listed next to this text.
                       </p>
                     </div>
                     <button
@@ -581,6 +691,7 @@ export function HelpInstructions() {
                     {section === 'slice' && <PanelSlice />}
                     {section === 'loop' && <PanelLoop />}
                     {section === 'grain' && <PanelGrain />}
+                    {section === 'oneshots' && <PanelOneshots />}
                     {section === 'files' && (
                       <PanelFiles
                         projectLabel={project.label}
@@ -589,6 +700,7 @@ export function HelpInstructions() {
                         fsAccessSupported={project.supported}
                       />
                     )}
+                    {section === 'about' && <PanelAbout />}
                   </div>
                 </div>
 

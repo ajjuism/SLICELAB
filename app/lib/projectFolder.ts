@@ -15,6 +15,8 @@ export type ProjectManifest = {
     loopWav: number;
     grainWav: number;
     oneshotWav: number;
+    /** Numbered batch ZIP exports from Oneshots (slicelab_oneshot_batch_NNN.zip). */
+    oneshotBatchZip: number;
   };
 };
 
@@ -25,6 +27,7 @@ const defaultManifest = (): ProjectManifest => ({
     loopWav: 0,
     grainWav: 0,
     oneshotWav: 0,
+    oneshotBatchZip: 0,
   },
 });
 
@@ -144,6 +147,7 @@ async function readManifest(root: FileSystemDirectoryHandle): Promise<ProjectMan
     if (parsed?.version === 1 && parsed.counters) {
       const c = parsed.counters;
       if (typeof c.oneshotWav !== 'number') c.oneshotWav = 0;
+      if (typeof c.oneshotBatchZip !== 'number') c.oneshotBatchZip = 0;
       return parsed;
     }
   } catch {
@@ -206,7 +210,12 @@ export async function saveSourceFileCopy(
   }
 }
 
-export type ExportKind = 'samplesZip' | 'loopWav' | 'grainWav' | 'oneshotWav';
+export type ExportKind =
+  | 'samplesZip'
+  | 'loopWav'
+  | 'grainWav'
+  | 'oneshotWav'
+  | 'oneshotBatchZip';
 
 export async function saveExportFile(
   root: FileSystemDirectoryHandle,
@@ -215,25 +224,50 @@ export async function saveExportFile(
 ): Promise<{ ok: true; relativePath: string; fileName: string } | { ok: false; error: string }> {
   try {
     const manifest = await readManifest(root);
-    const sub =
-      kind === 'samplesZip'
-        ? 'exports/samples'
-        : kind === 'loopWav'
-          ? 'exports/loops'
-          : kind === 'grainWav'
-            ? 'exports/grains'
-            : 'exports/oneshots';
-    const ext = kind === 'samplesZip' ? 'zip' : 'wav';
-    manifest.counters[kind] += 1;
-    const num = manifest.counters[kind];
-    const base =
-      kind === 'samplesZip'
-        ? 'slicelab_samples'
-        : kind === 'loopWav'
-          ? 'slicelab_loop'
-          : kind === 'grainWav'
-            ? 'slicelab_grain'
-            : 'slicelab_oneshot';
+    let sub: string;
+    let ext: string;
+    let base: string;
+    let counterKey: keyof ProjectManifest['counters'];
+
+    switch (kind) {
+      case 'samplesZip':
+        sub = 'exports/samples';
+        ext = 'zip';
+        base = 'slicelab_samples';
+        counterKey = 'samplesZip';
+        break;
+      case 'loopWav':
+        sub = 'exports/loops';
+        ext = 'wav';
+        base = 'slicelab_loop';
+        counterKey = 'loopWav';
+        break;
+      case 'grainWav':
+        sub = 'exports/grains';
+        ext = 'wav';
+        base = 'slicelab_grain';
+        counterKey = 'grainWav';
+        break;
+      case 'oneshotWav':
+        sub = 'exports/oneshots';
+        ext = 'wav';
+        base = 'slicelab_oneshot';
+        counterKey = 'oneshotWav';
+        break;
+      case 'oneshotBatchZip':
+        sub = 'exports/oneshots';
+        ext = 'zip';
+        base = 'slicelab_oneshot_batch';
+        counterKey = 'oneshotBatchZip';
+        break;
+      default: {
+        const _exhaustive: never = kind;
+        return { ok: false, error: `unknown export kind: ${_exhaustive}` };
+      }
+    }
+
+    manifest.counters[counterKey] += 1;
+    const num = manifest.counters[counterKey];
     const fileName = `${base}_${String(num).padStart(3, '0')}.${ext}`;
 
     const dir = await ensureNestedDir(root, sub);

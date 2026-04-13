@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import type { Slice } from '../types';
 import { bufferToWav } from '../lib/audio';
 import { buildOneshotComposite, type OneshotClipParams, type OneshotLayout } from '../lib/oneshotBuild';
+import { randomOneshotClipsFromPool, randomSequenceGapMs } from '../lib/oneshotBatch';
 import { useProjectOptional } from '../context/ProjectContext';
 import { triggerBlobDownload } from '../lib/projectFolder';
 import { OneshotClipWaveform, OneshotCompositeWaveform } from './OneshotWaveforms';
+import { BatchGenerateModal } from './BatchGenerateModal';
 import { Knob } from './Knob';
 
 const mono: CSSProperties['fontFamily'] = "'IBM Plex Mono', monospace";
@@ -33,45 +35,19 @@ function defaultClips(slices: Slice[]): OneshotClipParams[] {
   ];
 }
 
-function randomInt(min: number, max: number): number {
-  return min + Math.floor(Math.random() * (max - min + 1));
-}
-
-function shuffleIndices(n: number): number[] {
-  const a = Array.from({ length: n }, (_, i) => i);
-  for (let i = n - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j]!, a[i]!];
-  }
-  return a;
-}
-
-function randomOneshotClips(slices: Slice[]): OneshotClipParams[] {
-  const n = slices.length;
-  const minRows = 2;
-  const maxRows = Math.min(6, n);
-  const rowCount = minRows + Math.floor(Math.random() * (maxRows - minRows + 1));
-  const sliceIndices = shuffleIndices(n).slice(0, rowCount);
-
-  return sliceIndices.map(sliceIndex => ({
-    sliceIndex,
-    reverse: Math.random() < 0.38,
-    gain: Math.round((0.45 + Math.random() * 0.95) * 100) / 100,
-    startOffsetMs: randomInt(-50, 120),
-    trimStartMs: Math.random() < 0.55 ? 0 : randomInt(0, 70),
-    trimEndMs: Math.random() < 0.55 ? 0 : randomInt(0, 70),
-  }));
-}
-
-function randomOneshotSettings(slices: Slice[]): {
+function randomOneshotSettings(
+  slices: Slice[],
+  sequenceGapMinMs: number,
+  sequenceGapMaxMs: number,
+): {
   layout: OneshotLayout;
   sequenceGapMs: number;
   clips: OneshotClipParams[];
 } {
   return {
     layout: Math.random() < 0.5 ? 'layer' : 'sequence',
-    sequenceGapMs: randomInt(-150, 200),
-    clips: randomOneshotClips(slices),
+    sequenceGapMs: randomSequenceGapMs(sequenceGapMinMs, sequenceGapMaxMs),
+    clips: randomOneshotClipsFromPool(slices),
   };
 }
 
@@ -107,7 +83,11 @@ export function OneshotsMode({
   const project = useProjectOptional();
   const [layout, setLayout] = useState<OneshotLayout>('layer');
   const [sequenceGapMs, setSequenceGapMs] = useState(0);
+  /** Bounds for Randomize when it picks sequence layout (ms). */
+  const [sequenceGapRandMinMs, setSequenceGapRandMinMs] = useState(-150);
+  const [sequenceGapRandMaxMs, setSequenceGapRandMaxMs] = useState(200);
   const [clips, setClips] = useState<OneshotClipParams[]>([]);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
 
   useEffect(() => {
     if (slices.length < 2) {
@@ -148,11 +128,11 @@ export function OneshotsMode({
   }, []);
 
   const randomize = useCallback(() => {
-    const s = randomOneshotSettings(slices);
+    const s = randomOneshotSettings(slices, sequenceGapRandMinMs, sequenceGapRandMaxMs);
     setLayout(s.layout);
     setSequenceGapMs(s.sequenceGapMs);
     setClips(s.clips);
-  }, [slices]);
+  }, [slices, sequenceGapRandMinMs, sequenceGapRandMaxMs]);
 
   const build = useCallback(async () => {
     if (!audioBuffer || !canBuild) return null;
@@ -322,6 +302,24 @@ export function OneshotsMode({
             >
               Export WAV
             </button>
+            <button
+              type="button"
+              onClick={() => setBatchModalOpen(true)}
+              disabled={!audioBuffer}
+              title="Generate many oneshots from slice combinations (max 100)"
+              style={{
+                padding: '4px 9px',
+                fontSize: 10,
+                border: '1px solid var(--border2)',
+                borderRadius: 2,
+                background: audioBuffer ? 'var(--surface)' : 'var(--panel)',
+                color: audioBuffer ? 'var(--text)' : 'var(--faint)',
+                cursor: audioBuffer ? 'pointer' : 'not-allowed',
+                fontFamily: mono,
+              }}
+            >
+              Batch generate
+            </button>
           </div>
         </div>
 
@@ -383,32 +381,64 @@ export function OneshotsMode({
               Sequence
             </button>
             {layout === 'sequence' ? (
-              <label
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '3px 7px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 2,
-                  fontSize: 9,
-                  color: 'var(--muted)',
-                }}
-              >
-                <span style={{ fontFamily: mono }}>Gap</span>
-                <input
-                  type="number"
-                  value={sequenceGapMs}
-                  onChange={e => setSequenceGapMs(Number(e.target.value) || 0)}
+              <>
+                <label
                   style={{
-                    ...inp,
-                    width: 56,
-                    background: 'var(--panel)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '3px 7px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 2,
+                    fontSize: 9,
+                    color: 'var(--muted)',
                   }}
-                />
-                <span style={{ fontSize: 7, color: 'var(--faint)', fontFamily: mono }}>ms · − overlap</span>
-              </label>
+                >
+                  <span style={{ fontFamily: mono }}>Gap</span>
+                  <input
+                    type="number"
+                    value={sequenceGapMs}
+                    onChange={e => setSequenceGapMs(Number(e.target.value) || 0)}
+                    style={{
+                      ...inp,
+                      width: 56,
+                      background: 'var(--panel)',
+                    }}
+                  />
+                  <span style={{ fontSize: 7, color: 'var(--faint)', fontFamily: mono }}>ms · − overlap</span>
+                </label>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '3px 7px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 2,
+                    fontSize: 9,
+                    color: 'var(--muted)',
+                  }}
+                  title="Gap range used when Randomize picks sequence layout"
+                >
+                  <span style={{ fontFamily: mono, fontSize: 8 }}>Rand</span>
+                  <input
+                    type="number"
+                    value={sequenceGapRandMinMs}
+                    onChange={e => setSequenceGapRandMinMs(Number(e.target.value) || 0)}
+                    style={{ ...inp, width: 48, background: 'var(--panel)' }}
+                  />
+                  <span style={{ fontSize: 8, color: 'var(--faint)' }}>–</span>
+                  <input
+                    type="number"
+                    value={sequenceGapRandMaxMs}
+                    onChange={e => setSequenceGapRandMaxMs(Number(e.target.value) || 0)}
+                    style={{ ...inp, width: 48, background: 'var(--panel)' }}
+                  />
+                  <span style={{ fontSize: 7, color: 'var(--faint)', fontFamily: mono }}>ms</span>
+                </label>
+              </>
             ) : null}
             <button
               type="button"
@@ -742,6 +772,16 @@ export function OneshotsMode({
         </div>
       </div>
 
+      <BatchGenerateModal
+        open={batchModalOpen}
+        onClose={() => setBatchModalOpen(false)}
+        slices={slices}
+        audioBuffer={audioBuffer}
+        ensureAudioContext={ensureAudioContext}
+        playOneshotPreview={playOneshotPreview}
+        onStopOtherAudio={onStopOtherAudio}
+        playSlice={playSlice}
+      />
     </div>
   );
 }

@@ -4,11 +4,12 @@ import { createPortal } from 'react-dom';
 import { useProject } from '../context/ProjectContext';
 
 const FOLDER_TREE = `project/
-├── source/           ← loaded audio copy
+├── source/              ← loaded audio copy
 └── exports/
-    ├── samples/      ← slice zips
-    ├── loops/        ← loop WAVs
-    └── grains/       ← grain recordings`;
+    ├── samples/         ← slice zips
+    ├── loops/           ← loop WAVs
+    ├── grains/          ← grain recordings
+    └── oneshots/        ← composite oneshot WAVs + batch ZIPs (manifest inside zip)`;
 
 /**
  * First-run (or “change folder”) modal: pick a writable project folder or stay on default downloads.
@@ -51,13 +52,17 @@ export function ProjectOnboarding() {
             {changing ? (
               <>
                 Pick a folder on this computer. SliceLab saves <strong>source</strong> copies,{' '}
-                <strong>sample zips</strong>, <strong>loops</strong>, and <strong>grain recordings</strong> in
-                subfolders. Nothing is uploaded—everything stays local.
+                <strong>sample zips</strong>, <strong>loops</strong>, <strong>grain recordings</strong>, and{' '}
+                <strong>oneshot exports</strong> (single WAVs and numbered batch ZIPs from the Oneshots tab) under{' '}
+                <code className="project-onboarding-code">exports/oneshots/</code>. Nothing is uploaded—everything
+                stays local.
               </>
             ) : (
               <>
                 Choose a folder and SliceLab will mirror your work there: a <strong>source</strong> copy when you load
-                audio, plus numbered exports. Or stay with the browser’s usual download location.
+                audio, plus numbered exports (slices, loops, grains, and oneshots—including batch generates with slice
+                tags in <code className="project-onboarding-code">manifest.json</code>). Or stay with the browser’s
+                usual download location.
               </>
             )}
           </p>

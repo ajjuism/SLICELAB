@@ -116,7 +116,12 @@ export function buildOneshotComposite(
     let t = 0;
     for (let i = 0; i < prepared.length; i++) {
       prepared[i]!.startSample = t;
-      t += prepared[i]!.buf.length + (i < prepared.length - 1 ? gap : 0);
+      if (i < prepared.length - 1) {
+        const nextT = t + prepared[i]!.buf.length + gap;
+        // Keep next clip start ≥ 0 so samples are not written before the buffer (negative starts are fully skipped).
+        // Large negative gaps still create overlap via max(0, …) instead of inaudible “silent” clips.
+        t = Math.max(0, nextT);
+      }
     }
   }
 

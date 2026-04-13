@@ -81,6 +81,7 @@ type Ctx = {
   trySaveLoop: (blob: Blob) => Promise<boolean>;
   trySaveGrain: (blob: Blob) => Promise<boolean>;
   trySaveOneshot: (blob: Blob) => Promise<boolean>;
+  trySaveOneshotBatchZip: (blob: Blob) => Promise<boolean>;
   onSourceFileLoaded: (file: File) => Promise<void>;
   /** For onboarding modal visibility */
   showOnboarding: boolean;
@@ -258,6 +259,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     [root, mode, folderName, pushSaveNotice],
   );
 
+  const trySaveOneshotBatchZip = useCallback(
+    async (blob: Blob) => {
+      if (!root || mode !== 'folder') return false;
+      const r = await saveExportFile(root, 'oneshotBatchZip', blob);
+      if (r.ok) pushSaveNotice(folderName, r.relativePath, 'Oneshot batch ZIP');
+      return r.ok;
+    },
+    [root, mode, folderName, pushSaveNotice],
+  );
+
   const onSourceFileLoaded = useCallback(
     async (file: File) => {
       if (!root || mode !== 'folder') return;
@@ -301,6 +312,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       trySaveLoop,
       trySaveGrain,
       trySaveOneshot,
+      trySaveOneshotBatchZip,
       onSourceFileLoaded,
       showOnboarding: supported && showOnboarding,
       dismissOnboarding,
@@ -322,6 +334,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       trySaveLoop,
       trySaveGrain,
       trySaveOneshot,
+      trySaveOneshotBatchZip,
       onSourceFileLoaded,
       dismissOnboarding,
       promptProjectSetup,

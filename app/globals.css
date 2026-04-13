@@ -457,6 +457,14 @@ select.loop-step-select:disabled {
   color: var(--muted);
   font-family: 'IBM Plex Sans', sans-serif;
 }
+.help-inline-link {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.help-inline-link:hover {
+  opacity: 0.88;
+}
 .help-instructions-main .help-block {
   margin-bottom: 18px;
 }
@@ -583,6 +591,14 @@ select.loop-step-select:disabled {
   justify-content: center;
   padding: 20px;
   animation: project-onboarding-fade 0.2s ease-out;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.project-onboarding-backdrop::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 @keyframes project-onboarding-fade {
   from { opacity: 0; }
@@ -659,6 +675,10 @@ select.loop-step-select:disabled {
   font-weight: 600;
   color: var(--text);
 }
+.project-onboarding-code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.92em;
+}
 .project-onboarding-tree {
   margin: 0 0 18px;
   padding: 12px 14px;
@@ -669,8 +689,9 @@ select.loop-step-select:disabled {
   font-size: 10px;
   line-height: 1.7;
   color: var(--text);
-  white-space: pre;
-  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow: hidden;
+  word-break: break-word;
   letter-spacing: 0.02em;
 }
 .project-onboarding-tree-label {

@@ -6,7 +6,7 @@
 
 # SliceLab
 
-**Slice audio into samples in your browser.** Drop a long recording, auto-detect slice points (or slice to a grid), tweak fades and filenames, export a **ZIP of WAVs**, sketch layered patterns in the **loop builder**, and explore **granular playback** on the **Grains** tab. Processing runs in the browser—your files stay on your device.
+**Slice audio into samples in your browser.** Drop a long recording, auto-detect slice points (or slice to a grid), tweak fades and filenames, export a **ZIP of WAVs**, sketch layered patterns in the **loop builder**, explore **granular playback** on the **Grains** tab, and **combine slices** into one-shot composites on the **Oneshots** tab (layer or sequence, optional **batch generate** with ZIP + manifest). Processing runs in the browser—your files stay on your device.
 
 **Live app:** [slicelab.pxl8.studio](https://slicelab.pxl8.studio)
 
@@ -23,7 +23,8 @@
 | **Export** | One-click **ZIP** of 16-bit mono WAV slices |
 | **Loop builder** | Step sequencer (8 / 16 / 32 steps per bar), per-layer hit rate, layers, swing, time signature, optional loop WAV download |
 | **Grains** | Granular “cloud” from your slices, delay/reverb, 7-band EQ, live scope/spectrum, **record to WAV** |
-| **Project folder** (optional) | On supported desktop browsers (Chrome, Edge, Arc), connect a folder so exports and a **source** copy of loaded audio go into `source/`, `exports/samples/`, `exports/loops/`, `exports/grains/`. Otherwise exports use normal browser downloads |
+| **Oneshots** | Stack or sequence multiple slices into one WAV; per-clip trim, reverse, gain, offsets; **Randomize**; **Batch generate** for many randomized combinations (max 100), pool exclusions, configurable sequence gap range, ZIP download with `manifest.json` and optional project-folder save |
+| **Project folder** (optional) | On supported desktop browsers (Chrome, Edge, Arc), connect a folder so exports and a **source** copy of loaded audio go into `source/`, `exports/samples/`, `exports/loops/`, `exports/grains/`, `exports/oneshots/` (numbered single oneshot WAVs and batch ZIPs). Otherwise exports use normal browser downloads |
 | **Appearance** | **Invert** in the top bar toggles a near-black palette vs. the default light UI; your choice is saved in the browser |
 
 ---
@@ -55,6 +56,7 @@ npm start
 5. **Preview** slices or the full file; use **Download zip** when you are happy with the cuts.
 6. **Loop builder** (after slices exist) — Pick step resolution (8–32 per bar), assign slices, adjust tempo and feel, play or export a loop.
 7. **Grains** (after slices exist) — Start the grain cloud, shape texture and space, use EQ if you like, then record the output to WAV when needed.
+8. **Oneshots** (after at least two slices) — Choose **Layer** or **Sequence**, edit clips, preview, **Export WAV**; open **Batch generate** for randomized multi-slice combinations, then download a ZIP (check rows to include). Use the floating **help** button (bottom-right) for full documentation.
 
 On first visit, supported browsers may offer a **project folder** so files are written in one place; you can skip and use downloads only, or change this later from the top bar (**Project · …**).
 
@@ -79,7 +81,9 @@ On first visit, supported browsers may offer a **project folder** so files are w
 | Path | Role |
 | --- | --- |
 | `app/` | Routes, layout, metadata, global styles |
-| `app/components/` | UI (waveform, slice grid, loop builder, grains, sidebar, onboarding, …) |
+| `app/components/` | UI (waveform, slice grid, loop builder, grains, oneshots, batch modal, sidebar, onboarding, …) |
+| `app/lib/oneshotBuild.ts` | Composite buffer build (layer / sequence) |
+| `app/lib/oneshotBatch.ts` | Batch plan sampling, shared random clip params |
 | `app/context/ProjectContext.tsx` | Project folder connection, save notices, export routing |
 | `app/hooks/useAudioEngine.ts` | Audio context, playback, export |
 | `app/lib/audio.ts` | Detection, buffers, waveform drawing, WAV encoding |
