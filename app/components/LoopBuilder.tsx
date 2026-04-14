@@ -195,16 +195,35 @@ function loopStepGridMetrics(stepsPerBar: StepsPerBar): {
   colMin: number;
   gap: number;
   labelFs: number;
-  cellPad: string;
+  /** Longhand only — step cells also set paddingLeft when drawing a bar boundary (avoid mixing with `padding` shorthand). */
+  cellPadding: { top: string; right: string; bottom: string; left: string };
   minGridPx: number;
 } {
   switch (stepsPerBar) {
     case 32:
-      return { colMin: 28, gap: 4, labelFs: 7, cellPad: '4px 2px 5px', minGridPx: 32 * 33 };
+      return {
+        colMin: 28,
+        gap: 4,
+        labelFs: 7,
+        cellPadding: { top: '4px', right: '2px', bottom: '5px', left: '2px' },
+        minGridPx: 32 * 33,
+      };
     case 16:
-      return { colMin: 38, gap: 5, labelFs: 8, cellPad: '5px 4px 6px', minGridPx: 16 * 45 };
+      return {
+        colMin: 38,
+        gap: 5,
+        labelFs: 8,
+        cellPadding: { top: '5px', right: '4px', bottom: '6px', left: '4px' },
+        minGridPx: 16 * 45,
+      };
     default:
-      return { colMin: 46, gap: 5, labelFs: 8, cellPad: '5px 4px 6px', minGridPx: 8 * 52 };
+      return {
+        colMin: 46,
+        gap: 5,
+        labelFs: 8,
+        cellPadding: { top: '5px', right: '4px', bottom: '6px', left: '4px' },
+        minGridPx: 8 * 52,
+      };
   }
 }
 
@@ -974,10 +993,12 @@ export function LoopBuilder({
                           flexDirection: 'column',
                           gap: 3,
                           minWidth: 0,
-                          padding: stepGrid.cellPad,
+                          paddingTop: stepGrid.cellPadding.top,
+                          paddingRight: stepGrid.cellPadding.right,
+                          paddingBottom: stepGrid.cellPadding.bottom,
+                          paddingLeft: barBoundary ? 6 : stepGrid.cellPadding.left,
                           borderRadius: 2,
                           borderLeft: barBoundary ? '2px solid var(--border2)' : undefined,
-                          paddingLeft: barBoundary ? 6 : undefined,
                           marginLeft: barBoundary ? 2 : undefined,
                           background: isPlayheadHit
                             ? 'var(--panel)'
