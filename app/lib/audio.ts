@@ -277,24 +277,26 @@ export function barDurationSeconds(bpm: number, timeSignature: TimeSignature): n
   return 4 * quarterSec;
 }
 
-/** Step grid for one bar — must match buildLayeredDrumPatternBuffer mixing layout. */
+/** Step grid for a pattern (one or more bars). Step length follows stepsPerBar; total length is stepsPerBar × numBars. */
 export function getLoopStepLayout(
   bpm: number,
   stepsPerBar: StepsPerBar,
+  numBars: number,
   swingPercent: number,
   timeSignature: TimeSignature,
   sampleRate: number,
-): { stepSamples: number; totalSamples: number; stepStartSamples: number[] } {
-  const n = stepsPerBar;
+): { stepSamples: number; totalSamples: number; stepStartSamples: number[]; totalSteps: number } {
+  const bars = Math.max(1, Math.min(32, Math.floor(Number(numBars)) || 1));
+  const totalSteps = stepsPerBar * bars;
   const barSec = barDurationSeconds(bpm, timeSignature);
-  const stepSec = barSec / n;
+  const stepSec = barSec / stepsPerBar;
   const stepSamples = Math.round(stepSec * sampleRate);
-  const totalSamples = stepSamples * n;
+  const totalSamples = stepSamples * totalSteps;
   const swing = (Math.max(0, Math.min(100, swingPercent)) / 100) * 0.5 * stepSamples;
-  const stepStartSamples = Array.from({ length: n }, (_, step) =>
+  const stepStartSamples = Array.from({ length: totalSteps }, (_, step) =>
     step * stepSamples + (step % 2 === 1 ? Math.round(swing) : 0),
   );
-  return { stepSamples, totalSamples, stepStartSamples };
+  return { stepSamples, totalSamples, stepStartSamples, totalSteps };
 }
 
 /** Map playback position in samples to step index (same grid as loop buffer). */
@@ -331,10 +333,11 @@ function sampleChannelLinear(data: Float32Array, srcPos: number): number {
 }
 
 /**
- * One bar (meter from time signature), multiple layers summed. Steps divide the bar evenly; odd-index steps can be swung.
+ * One or more bars (meter from time signature), multiple layers summed. Steps divide each bar evenly; odd-index steps can be swung.
  * Layers are mixed additively (layering). Muted layers are skipped.
  *
- * @param trimSamplesToStep — When true (default), each hit only plays the first ~step worth of the slice. When false, the slice plays from the step until the slice ends or the bar ends (whichever comes first).
+ * @param numBars — How many bars the pattern spans (layer length = stepsPerBar × numBars).
+ * @param trimSamplesToStep — When true (default), each hit only plays the first ~step worth of the slice. When false, the slice plays from the step until the slice ends or the current bar ends (whichever comes first).
  * @param layerPitchSemitones — Per-layer pitch in semitones (−∞…∞); 0 = original. Same rate for every hit on that layer.
  */
 export function buildLayeredDrumPatternBuffer(
@@ -344,17 +347,14 @@ export function buildLayeredDrumPatternBuffer(
   layerMutes: boolean[],
   bpm: number,
   stepsPerBar: StepsPerBar,
+  numBars: number,
   swingPercent: number,
   timeSignature: TimeSignature,
   audioCtx: AudioContext,
   trimSamplesToStep = true,
   layerPitchSemitones?: number[],
 ): AudioBuffer | null {
-  const n = stepsPerBar;
   if (layers.length === 0) return null;
-  for (const layer of layers) {
-    if (layer.length !== n) return null;
-  }
   const mutes = [...layerMutes];
   while (mutes.length < layers.length) mutes.push(false);
   const pitches = layerPitchSemitones ? [...layerPitchSemitones] : [];
@@ -362,13 +362,18 @@ export function buildLayeredDrumPatternBuffer(
 
   const sr = audioBuffer.sampleRate;
   const numCh = audioBuffer.numberOfChannels;
-  const { stepSamples, totalSamples, stepStartSamples } = getLoopStepLayout(
+  const { stepSamples, totalSamples, stepStartSamples, totalSteps } = getLoopStepLayout(
     bpm,
     stepsPerBar,
+    numBars,
     swingPercent,
     timeSignature,
     sr,
   );
+  const n = totalSteps;
+  for (const layer of layers) {
+    if (layer.length !== n) return null;
+  }
   const stepStartSample = (step: number) => stepStartSamples[step];
 
   const out = audioCtx.createBuffer(numCh, totalSamples, sr);
@@ -393,9 +398,11 @@ export function buildLayeredDrumPatternBuffer(
       const offset = stepStartSample(step);
       if (offset >= totalSamples) continue;
 
+      const barEndStep = Math.min((Math.floor(step / stepsPerBar) + 1) * stepsPerBar, n);
+      const barEndSample = barEndStep >= n ? totalSamples : stepStartSamples[barEndStep]!;
       const maxStepWindow = trimSamplesToStep
         ? Math.min(stepSamples, totalSamples - offset)
-        : totalSamples - offset;
+        : barEndSample - offset;
       const maxOutFromSource = Math.max(1, Math.floor((full.length - 1) / rate) + 1);
       const copyLen = Math.min(maxOutFromSource, maxStepWindow);
       if (copyLen <= 0) continue;
@@ -455,6 +462,7 @@ export function buildDrumPatternBuffer(
     [false],
     bpm,
     stepsPerBar,
+    1,
     0,
     '4/4',
     audioCtx,

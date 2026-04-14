@@ -335,6 +335,7 @@ export function useAudioEngine() {
     layerPitchSemitones: number[],
     bpm: number,
     stepsPerBar: StepsPerBar,
+    numBars: number,
     swingPercent: number,
     timeSignature: TimeSignature,
     trimSamplesToStep = true,
@@ -356,7 +357,7 @@ export function useAudioEngine() {
     stopLoop();
 
     const sr = audioBufferRef.current.sampleRate;
-    const layout = getLoopStepLayout(bpm, stepsPerBar, swingPercent, timeSignature, sr);
+    const layout = getLoopStepLayout(bpm, stepsPerBar, numBars, swingPercent, timeSignature, sr);
 
     const bar = buildLayeredDrumPatternBuffer(
       audioBufferRef.current,
@@ -365,6 +366,7 @@ export function useAudioEngine() {
       layerMutes,
       bpm,
       stepsPerBar,
+      numBars,
       swingPercent,
       timeSignature,
       ctx,
@@ -394,6 +396,7 @@ export function useAudioEngine() {
     layerPitchSemitones: number[],
     bpm: number,
     stepsPerBar: StepsPerBar,
+    numBars: number,
     swingPercent: number,
     timeSignature: TimeSignature,
     trimSamplesToStep = true,
@@ -413,6 +416,7 @@ export function useAudioEngine() {
       layerMutes,
       bpm,
       stepsPerBar,
+      numBars,
       swingPercent,
       timeSignature,
       ctx,

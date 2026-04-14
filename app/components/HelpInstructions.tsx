@@ -74,8 +74,9 @@ function PanelOverview() {
             redo → <strong>Download zip</strong> when ready.
           </li>
           <li>
-            To try patterns: open <strong>Loops</strong>, choose which slices are in the pool, fill steps, press{' '}
-            <strong>Play</strong>, then <strong>Download WAV</strong> if you want that bar as a file.
+            To try patterns: open <strong>Loops</strong>, choose which slices are in the pool, fill steps (optionally set{' '}
+            <strong>Bars</strong> for a multi-bar pattern), press <strong>Play</strong>, then <strong>Download WAV</strong> if you
+            want that loop as a file.
           </li>
           <li>
             For sustained textures: open <strong>Grains</strong>, start the grain cloud, tweak Cloud and Space, use the
@@ -245,8 +246,9 @@ function PanelLoop() {
     <div id="help-panel-loop" role="tabpanel" aria-labelledby="help-nav-loop">
       <h3 className="help-pane-title">Loops</h3>
       <p className="help-lead">
-        Once slices exist, open the <strong>Loops</strong> tab to sequence them on a bar-long grid. Multiple layers
-        stack hits on the same step; swing and meter shape the feel.
+        Once slices exist, open the <strong>Loops</strong> tab to sequence them on a step grid. Use <strong>Bars</strong> to
+        make the pattern one or more bars long (same steps-per-bar resolution repeated). Multiple layers stack hits on the
+        same step; swing and meter shape the feel.
       </p>
 
       <div className="help-block">
@@ -258,8 +260,12 @@ function PanelLoop() {
           </li>
           <li>
             <strong>Steps per bar</strong> — <strong>8</strong>, <strong>16</strong>, or <strong>32</strong> steps divide
-            one bar into that many equal slices. More steps means a finer grid and faster step timing at the same BPM;
-            the pattern is still one bar long. To slow the loop, lower BPM—not step count.
+            each bar into that many equal slices. More steps means a finer grid and faster step timing at the same BPM; it
+            does not lengthen the bar. To slow the loop, lower BPM—not step count.
+          </li>
+          <li>
+            <strong>Bars</strong> — How many bars the loop spans (up to eight). Total steps = steps per bar × bars, so you
+            can vary hits across bars (e.g. a fill on the last bar).
           </li>
           <li>
             <strong>Swing</strong> — Delays odd-numbered steps slightly for a shuffle feel (0 = straight).
@@ -291,18 +297,22 @@ function PanelLoop() {
           <li>
             <strong>+ Add layer</strong> — Stack independent patterns. Each layer has <strong>Mute</strong>,{' '}
             <strong>Random</strong> (reseeds that layer’s pattern using the pool), <strong>Clear</strong>, and{' '}
-            <strong>Remove</strong> (when more than one layer exists).
+            <strong>Remove</strong> (when more than one layer exists). With <strong>multiple bars</strong>, Random /
+            Randomize all default to repeating bar 1 until the last bar, then varying the last bar. Turn on{' '}
+            <strong>Custom bar variation</strong> on a layer to choose <strong>Spread</strong> (light / heavy drift from bar
+            1 on every bar, or a fully random pattern).
           </li>
           <li>
             <strong>Hit rate</strong> — For Random / <strong>Randomize all</strong>: probability (5–100%) that a step
-            gets a hit vs rest—per layer.
+            gets a hit vs rest when rolling—per layer.
           </li>
           <li>
             <strong>Pitch</strong> — Per-layer shift in semitones (−24…+24). Implemented sampler-style (pitch and
             playback speed change together within the step window).
           </li>
           <li>
-            <strong>Randomize all</strong> — Reseeds every layer using each layer’s hit rate and the current pool.
+            <strong>Randomize all</strong> — Reseeds every layer using each layer’s hit rate and the current pool (respects
+            each layer’s Custom bar variation / Spread when using multiple bars).
           </li>
         </ul>
       </div>
@@ -311,11 +321,11 @@ function PanelLoop() {
         <h4>Playback & export</h4>
         <ul>
           <li>
-            <strong>Play</strong> — Loops the built bar; the UI shows the current step. Stop returns to idle.
+            <strong>Play</strong> — Loops the built pattern; the UI shows the current step. Stop returns to idle.
           </li>
           <li>
-            <strong>Download WAV</strong> — Renders one mixed bar (all unmuted layers) to a WAV file for use outside the
-            app.
+            <strong>Download WAV</strong> — Renders the full mixed loop (all unmuted layers) to a WAV file for use outside
+            the app.
           </li>
         </ul>
         <p className="help-muted" style={{ marginTop: 10, marginBottom: 0 }}>
@@ -489,7 +499,8 @@ function PanelFiles({
             <strong>Slice zip</strong> — WAV slices (mono, 16-bit) plus sidecar metadata for DAWs or samplers.
           </li>
           <li>
-            <strong>Loop WAV</strong> — One bar of the mixed loop as a WAV file (same channel layout as your source buffer).
+            <strong>Loop WAV</strong> — The mixed loop (one or more bars, per your Bars setting) as a WAV file (same channel
+            layout as your source buffer).
           </li>
           <li>
             <strong>Grain recording</strong> — From the Grains tab, <strong>Record to WAV</strong> saves processed output
