@@ -623,6 +623,11 @@ export function useAudioEngine() {
     setStatusActive(false);
   }, [stopPlayback]);
 
+  const setStatusMessage = useCallback((msg: string) => {
+    setStatus(msg);
+    setStatusActive(false);
+  }, []);
+
   return {
     audioBuffer: audioBufferRef,
     audioInfo,
@@ -658,6 +663,7 @@ export function useAudioEngine() {
     clear,
     clearAppliedSlices,
     ensureAudioContext,
+    setStatusMessage,
   };
 }
 

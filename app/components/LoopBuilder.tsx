@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import type { Slice, StepsPerBar, TimeSignature } from '../types';
+import { useRef, type CSSProperties } from 'react';
+import type { LoopBarVariationMode, Slice, StepsPerBar, TimeSignature } from '../types';
+export type { LoopBarVariationMode, LoopLayerRow } from '../types';
 import { fmtTime } from '../lib/audio';
+import { PITCH_MAX, PITCH_MIN } from '../lib/loopPatternUtils';
+import { useLoopRecipe } from '../context/LoopRecipeContext';
 
 const MAX_LAYERS = 6;
 const MAX_LOOP_BARS = 8;
@@ -17,25 +20,6 @@ const TIME_SIGNATURES: { value: TimeSignature; label: string }[] = [
   { value: '9/8', label: '9/8' },
   { value: '12/8', label: '12/8' },
 ];
-
-/** When custom bar variation is on: how bars differ from bar 1 after Random (multi-bar only). */
-export type LoopBarVariationMode = 'eachBarLight' | 'eachBarHeavy' | 'fullRandom';
-
-export interface LoopLayerRow {
-  pattern: (number | null)[];
-  muted: boolean;
-  /** 5–100: probability of a hit on each step when using Random / Randomize all. */
-  hitRate: number;
-  /** Semitones (−24…24): pitch-shift every hit on this layer (sampler-style; changes length vs step). */
-  pitchSemitones: number;
-  /**
-   * When false (default), Random repeats bar 1 through the second-to-last bar and only mutates the last bar.
-   * When true, Random uses `barVariationMode` instead.
-   */
-  barVariationEnabled: boolean;
-  /** Used when `barVariationEnabled` and Bars > 1. */
-  barVariationMode: LoopBarVariationMode;
-}
 
 interface LoopBuilderProps {
   slices: Slice[];
@@ -68,126 +52,6 @@ interface LoopBuilderProps {
   onStopLoop: () => void;
   onPlaySlice: (slice: Slice) => void;
   hasAudio: boolean;
-}
-
-function resizePattern(p: (number | null)[], n: number): (number | null)[] {
-  const next = p.slice(0, n);
-  while (next.length < n) next.push(null);
-  return next;
-}
-
-function generateRandomPattern(
-  slices: Slice[],
-  kit: Set<number>,
-  steps: number,
-  hitChance: number,
-): (number | null)[] {
-  const ids = slices.map(s => s.index).filter(i => kit.has(i));
-  if (ids.length === 0) return Array.from({ length: steps }, () => null);
-  const p = Math.max(0, Math.min(1, hitChance));
-  return Array.from({ length: steps }, () => {
-    if (Math.random() > p) return null;
-    return ids[Math.floor(Math.random() * ids.length)]!;
-  });
-}
-
-function pickDistinctRandomIndices(barLen: number, want: number): number[] {
-  const idx = Array.from({ length: barLen }, (_, i) => i);
-  for (let i = idx.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [idx[i], idx[j]] = [idx[j], idx[i]];
-  }
-  return idx.slice(0, Math.min(want, barLen));
-}
-
-type LayerBarVariation = 'lastBarFill' | 'eachBarLight' | 'eachBarHeavy' | 'fullRandom';
-
-function mutateBarInPlace(
-  bar: (number | null)[],
-  stepsPerBar: number,
-  mutationCount: number,
-  rollStep: () => number | null,
-  ids: number[],
-): void {
-  for (const i of pickDistinctRandomIndices(stepsPerBar, mutationCount)) {
-    let next: number | null;
-    let guard = 0;
-    do {
-      next = rollStep();
-      guard++;
-    } while (guard < 10 && ids.length > 1 && next === bar[i]);
-    bar[i] = next;
-  }
-}
-
-/**
- * Multi-bar random patterns: default repeats bar 1 until the last bar, then mutates the last; other modes vary
- * every bar from bar 1 or fully randomize the grid.
- */
-function generateLayerRandomPattern(
-  slices: Slice[],
-  kit: Set<number>,
-  stepsPerBar: StepsPerBar,
-  numBars: number,
-  hitChance: number,
-  variation: LayerBarVariation,
-): (number | null)[] {
-  const ids = slices.map(s => s.index).filter(i => kit.has(i));
-  const totalSteps = stepsPerBar * numBars;
-  if (ids.length === 0) return Array.from({ length: totalSteps }, () => null);
-  if (numBars <= 1) {
-    return generateRandomPattern(slices, kit, stepsPerBar, hitChance);
-  }
-
-  if (variation === 'fullRandom') {
-    return generateRandomPattern(slices, kit, totalSteps, hitChance);
-  }
-
-  const p = Math.max(0, Math.min(1, hitChance));
-  const rollStep = (): number | null => {
-    if (Math.random() > p) return null;
-    return ids[Math.floor(Math.random() * ids.length)]!;
-  };
-
-  const base = generateRandomPattern(slices, kit, stepsPerBar, hitChance);
-
-  if (variation === 'lastBarFill') {
-    const out: (number | null)[] = [];
-    for (let b = 0; b < numBars - 1; b++) {
-      out.push(...base);
-    }
-    const lastBar = base.slice();
-    const mutationCount = Math.max(2, Math.min(8, Math.round(stepsPerBar * 0.18)));
-    mutateBarInPlace(lastBar, stepsPerBar, mutationCount, rollStep, ids);
-    out.push(...lastBar);
-    return out;
-  }
-
-  const lightCount = Math.max(1, Math.min(5, Math.round(stepsPerBar * 0.08)));
-  const heavyCount = Math.max(3, Math.min(12, Math.round(stepsPerBar * 0.28)));
-
-  const out: (number | null)[] = [...base];
-  const mutCount = variation === 'eachBarHeavy' ? heavyCount : lightCount;
-
-  for (let b = 1; b < numBars; b++) {
-    const seg = base.slice();
-    mutateBarInPlace(seg, stepsPerBar, mutCount, rollStep, ids);
-    out.push(...seg);
-  }
-  return out;
-}
-
-function resolveLayerBarVariation(L: LoopLayerRow, numBars: number): LayerBarVariation {
-  if (numBars <= 1) return 'lastBarFill';
-  if (!L.barVariationEnabled) return 'lastBarFill';
-  switch (L.barVariationMode) {
-    case 'eachBarLight':
-      return 'eachBarLight';
-    case 'eachBarHeavy':
-      return 'eachBarHeavy';
-    default:
-      return 'fullRandom';
-  }
 }
 
 /** Tighter cells for high step counts; the row stays horizontally scrollable. */
@@ -238,17 +102,6 @@ function beatStrideForSteps(stepsPerBar: StepsPerBar): number {
   }
 }
 
-function applyKitToLayers(rows: LoopLayerRow[], pool: Set<number>): LoopLayerRow[] {
-  return rows.map(L => ({
-    ...L,
-    pattern: L.pattern.map(h => (h !== null && pool.has(h) ? h : null)),
-  }));
-}
-
-const DEFAULT_HIT_RATE = 55;
-const PITCH_MIN = -24;
-const PITCH_MAX = 24;
-
 function formatPitchSemitones(st: number): string {
   if (st === 0) return '0';
   return st > 0 ? `+${st}` : `${st}`;
@@ -265,217 +118,37 @@ export function LoopBuilder({
   onPlaySlice,
   hasAudio,
 }: LoopBuilderProps) {
-  const [bpm, setBpm] = useState(120);
-  const [swing, setSwing] = useState(0);
-  /** When true, each step plays only ~one step of audio; when false, slices play until they end or the bar ends. */
-  const [trimSamplesToStep, setTrimSamplesToStep] = useState(true);
-  const [timeSignature, setTimeSignature] = useState<TimeSignature>('4/4');
-  const [stepsPerBar, setStepsPerBar] = useState<StepsPerBar>(16);
-  const [numBars, setNumBars] = useState(1);
-  const [pool, setPool] = useState<Set<number>>(new Set());
-  const [layers, setLayers] = useState<LoopLayerRow[]>([
-    {
-      pattern: [],
-      muted: false,
-      hitRate: DEFAULT_HIT_RATE,
-      pitchSemitones: 0,
-      barVariationEnabled: false,
-      barVariationMode: 'eachBarLight',
-    },
-  ]);
-
-  const poolRef = useRef(pool);
-  const stepsPerBarRef = useRef(stepsPerBar);
-  const numBarsRef = useRef(numBars);
-  poolRef.current = pool;
-  stepsPerBarRef.current = stepsPerBar;
-  numBarsRef.current = numBars;
-
-  const loopPlayingRef = useRef(loopPlaying);
-  loopPlayingRef.current = loopPlaying;
-
-  /** Reseed every layer using that layer’s hit rate. */
-  const randomizeAllLayers = () => {
-    if (slices.length === 0) return;
-    const kit = poolRef.current;
-    const spb = stepsPerBarRef.current;
-    const bars = numBarsRef.current;
-    setLayers(prev =>
-      prev.map(L => ({
-        ...L,
-        pattern: generateLayerRandomPattern(
-          slices,
-          kit,
-          spb,
-          bars,
-          L.hitRate / 100,
-          resolveLayerBarVariation(L, bars),
-        ),
-      })),
-    );
-  };
-
-  useEffect(() => {
-    if (slices.length === 0) {
-      setPool(new Set());
-      setLayers([
-        {
-          pattern: [],
-          muted: false,
-          hitRate: DEFAULT_HIT_RATE,
-          pitchSemitones: 0,
-          barVariationEnabled: false,
-          barVariationMode: 'eachBarLight',
-        },
-      ]);
-      return;
-    }
-    const kit = new Set(slices.map(s => s.index));
-    setPool(kit);
-    const bars = numBarsRef.current;
-    const pat = generateLayerRandomPattern(
-      slices,
-      kit,
-      stepsPerBarRef.current,
-      bars,
-      DEFAULT_HIT_RATE / 100,
-      'lastBarFill',
-    );
-    setLayers([
-      {
-        pattern: pat,
-        muted: false,
-        hitRate: DEFAULT_HIT_RATE,
-        pitchSemitones: 0,
-        barVariationEnabled: false,
-        barVariationMode: 'eachBarLight',
-      },
-    ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset on new slice set
-  }, [slices]);
-
-  useEffect(() => {
-    if (slices.length === 0) return;
-    const totalSteps = stepsPerBar * numBars;
-    setLayers(prev =>
-      prev.map(L => ({ ...L, pattern: resizePattern(L.pattern, totalSteps) })),
-    );
-  }, [stepsPerBar, numBars, slices.length]);
-
-  useEffect(() => {
-    if (loopPlayingRef.current) onStopLoop();
-  }, [layers, bpm, stepsPerBar, numBars, swing, timeSignature, onStopLoop]);
-
-  const togglePool = (index: number) => {
-    setPool(prev => {
-      const n = new Set(prev);
-      if (n.has(index)) n.delete(index);
-      else n.add(index);
-      setLayers(rows => applyKitToLayers(rows, n));
-      return n;
-    });
-  };
-
-  const setStep = (layerIdx: number, stepIdx: number, sliceIndex: number | null) => {
-    setLayers(prev => {
-      const next = prev.map((L, li) => {
-        if (li !== layerIdx) return L;
-        const pat = [...L.pattern];
-        pat[stepIdx] = sliceIndex;
-        return { ...L, pattern: pat };
-      });
-      return next;
-    });
-  };
-
-  const toggleMuteLayer = (layerIdx: number) => {
-    setLayers(prev =>
-      prev.map((L, i) => (i === layerIdx ? { ...L, muted: !L.muted } : L)),
-    );
-  };
-
-  const randomizeLayer = (layerIdx: number) => {
-    const kit = poolRef.current;
-    const spb = stepsPerBarRef.current;
-    const bars = numBarsRef.current;
-    setLayers(prev =>
-      prev.map((L, i) =>
-        i === layerIdx
-          ? {
-              ...L,
-              pattern: generateLayerRandomPattern(
-                slices,
-                kit,
-                spb,
-                bars,
-                L.hitRate / 100,
-                resolveLayerBarVariation(L, bars),
-              ),
-            }
-          : L,
-      ),
-    );
-  };
-
-  const setLayerHitRate = (layerIdx: number, hitRate: number) => {
-    const v = Math.max(5, Math.min(100, Math.round(hitRate)));
-    setLayers(prev =>
-      prev.map((L, i) => (i === layerIdx ? { ...L, hitRate: v } : L)),
-    );
-  };
-
-  const setLayerPitch = (layerIdx: number, semitones: number) => {
-    const v = Math.max(PITCH_MIN, Math.min(PITCH_MAX, Math.round(semitones)));
-    setLayers(prev =>
-      prev.map((L, i) => (i === layerIdx ? { ...L, pitchSemitones: v } : L)),
-    );
-  };
-
-  const setLayerBarVariationEnabled = (layerIdx: number, enabled: boolean) => {
-    setLayers(prev =>
-      prev.map((L, i) => (i === layerIdx ? { ...L, barVariationEnabled: enabled } : L)),
-    );
-  };
-
-  const setLayerBarVariationMode = (layerIdx: number, mode: LoopBarVariationMode) => {
-    setLayers(prev =>
-      prev.map((L, i) => (i === layerIdx ? { ...L, barVariationMode: mode } : L)),
-    );
-  };
-
-  const clearLayer = (layerIdx: number) => {
-    const totalSteps = stepsPerBar * numBars;
-    setLayers(prev =>
-      prev.map((L, i) =>
-        i === layerIdx ? { ...L, pattern: Array.from({ length: totalSteps }, () => null) } : L,
-      ),
-    );
-  };
-
-  const addLayer = () => {
-    const totalSteps = stepsPerBar * numBars;
-    setLayers(prev => {
-      if (prev.length >= MAX_LAYERS) return prev;
-      return [
-        ...prev,
-        {
-          pattern: Array.from({ length: totalSteps }, () => null),
-          muted: false,
-          hitRate: DEFAULT_HIT_RATE,
-          pitchSemitones: 0,
-          barVariationEnabled: false,
-          barVariationMode: 'eachBarLight',
-        },
-      ];
-    });
-  };
-
-  const removeLayer = (layerIdx: number) => {
-    setLayers(prev => {
-      if (prev.length <= 1) return prev;
-      return prev.filter((_, i) => i !== layerIdx);
-    });
-  };
+  const recipeImportRef = useRef<HTMLInputElement>(null);
+  const {
+    bpm,
+    setBpm,
+    swing,
+    setSwing,
+    trimSamplesToStep,
+    setTrimSamplesToStep,
+    timeSignature,
+    setTimeSignature,
+    stepsPerBar,
+    setStepsPerBar,
+    numBars,
+    setNumBars,
+    pool,
+    layers,
+    togglePool,
+    setStep,
+    toggleMuteLayer,
+    randomizeLayer,
+    randomizeAllLayers,
+    setLayerHitRate,
+    setLayerPitch,
+    setLayerBarVariationEnabled,
+    setLayerBarVariationMode,
+    clearLayer,
+    addLayer,
+    removeLayer,
+    exportLoopRecipe,
+    importLoopRecipeFromFile,
+  } = useLoopRecipe();
 
   const kitIds = slices.filter(s => pool.has(s.index)).map(s => s.index);
   const layerPatterns = layers.map(L => L.pattern);
@@ -529,9 +202,8 @@ export function LoopBuilder({
       }}>
       <div style={{
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
+        flexDirection: 'column',
+        alignItems: 'stretch',
         gap: 10,
         marginBottom: 10,
       }}>
@@ -554,18 +226,31 @@ export function LoopBuilder({
             transport · meter · export
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%' }}>
           <label style={labelStyle} title="Quarter-note BPM. Bar length follows the meter (e.g. 3/4 = three quarter notes).">
             BPM
             <input
-              type="range"
+              type="number"
               min={60}
               max={180}
+              step={1}
               value={bpm}
-              onChange={e => setBpm(Number(e.target.value))}
-              style={{ width: 90 }}
+              onChange={e => {
+                const v = parseInt(e.target.value, 10);
+                if (Number.isNaN(v)) return;
+                setBpm(Math.max(60, Math.min(180, v)));
+              }}
+              style={{
+                width: 52,
+                padding: '4px 6px',
+                fontSize: 10,
+                fontFamily: "'IBM Plex Mono', monospace",
+                border: '1px solid var(--border)',
+                borderRadius: 2,
+                background: 'var(--surface)',
+                color: 'var(--text)',
+              }}
             />
-            <span style={{ color: 'var(--faint)', minWidth: 28 }}>{bpm}</span>
           </label>
           <label style={meterLabelStyle}>
             Meter
@@ -700,6 +385,34 @@ export function LoopBuilder({
           >
             Download WAV
           </button>
+          <input
+            ref={recipeImportRef}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: 'none' }}
+            aria-hidden
+            onChange={e => {
+              const f = e.target.files?.[0];
+              if (f) void importLoopRecipeFromFile(f);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={exportLoopRecipe}
+            title="Download a JSON recipe: loop transport, pool, and layer patterns (slice indices only—no audio)."
+            style={miniBtn}
+          >
+            Export recipe
+          </button>
+          <button
+            type="button"
+            onClick={() => recipeImportRef.current?.click()}
+            title="Load a previously exported SliceLab recipe JSON. Use the same slice indices in your project, or pool/pattern cells will clear where indices do not exist."
+            style={miniBtn}
+          >
+            Import recipe
+          </button>
         </div>
       </div>
       </div>
@@ -714,7 +427,8 @@ export function LoopBuilder({
         maxWidth: '100%',
       }}>
         Layers stack on the same step; step menus use the kit only. Swing offsets odd steps. Each layer has its own hit rate for Random / Randomize all, and its own pitch (semitones).
-        Meter sets bar length. Steps per bar is grid resolution per bar; Bars stacks that many bars end-to-end for a longer pattern. Uncheck “Trim to step” to let long samples ring out to the end of each bar.
+        Meter sets bar length. Steps per bar is grid resolution per bar; Bars stacks that many bars end-to-end for a longer pattern. Uncheck “Trim to step” to let long samples ring out to the end of each bar.{' '}
+        <strong>Export recipe</strong> saves loop settings as JSON (no samples); <strong>Import recipe</strong> applies them to your current slices.
       </p>
 
       {slices.length === 0 ? (

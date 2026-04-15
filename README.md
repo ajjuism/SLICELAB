@@ -21,7 +21,7 @@
 | **Fades** | Per-slice fade-in / fade-out to reduce clicks |
 | **Naming** | Indexed names (`smpl_001`…) or **hex**-style names, with a custom **prefix** |
 | **Export** | One-click **ZIP** of 16-bit mono WAV slices |
-| **Loop builder** | Step sequencer: **8 / 16 / 32 steps per bar**, **1–8 bars** per pattern, layers + per-layer hit rate / pitch, swing, time signature; **Random** defaults to repeating bar 1 with variation on the **last bar**; optional per-layer **Custom bar variation** + **Spread** (light / heavy / full random); optional loop WAV download |
+| **Loop builder** | Step sequencer: **8 / 16 / 32 steps per bar**, **1–8 bars** per pattern, **BPM** as a number field (60–180), **Swing** slider (0–100%), layers + per-layer hit rate / pitch, time signature; **Random** defaults to repeating bar 1 with variation on the **last bar**; optional per-layer **Custom bar variation** + **Spread** (light / heavy / full random); **Export recipe** / **Import recipe** (JSON preset—loop settings and slice indices, no audio); optional loop WAV download |
 | **Grains** | Granular “cloud” from your slices, delay/reverb, 7-band EQ, live scope/spectrum, **record to WAV** |
 | **Oneshots** | Stack or sequence multiple slices into one WAV; per-clip trim, reverse, gain, offsets; **Randomize**; **Batch generate** for many randomized combinations (max 100), pool exclusions, configurable sequence gap range, ZIP download with `manifest.json` and optional project-folder save |
 | **Project folder** (optional) | On supported desktop browsers (Chrome, Edge, Arc), connect a folder so exports and a **source** copy of loaded audio go into `source/`, `exports/samples/`, `exports/loops/`, `exports/grains/`, `exports/oneshots/` (numbered single oneshot WAVs and batch ZIPs). Otherwise exports use normal browser downloads |
@@ -54,7 +54,7 @@ npm start
 3. **Set fades and naming** (prefix + index or hex scheme).
 4. **Analyze** — Slices appear on the waveform and in the slice grid.
 5. **Preview** slices or the full file; use **Download zip** when you are happy with the cuts.
-6. **Loop builder** (after slices exist) — Set **steps per bar** (8–32), **bars** (pattern length), assign slices from the pool, layers, swing, and meter; use **Random** / **Randomize all** (default: groove through the second-to-last bar, fill on the last) or enable **Custom bar variation** + **Spread** per layer; play or export a loop WAV.
+6. **Loop builder** (after slices exist) — Set **BPM** (numeric), **Swing** (slider), **steps per bar** (8–32), **bars** (pattern length), assign slices from the pool, layers, and meter; use **Random** / **Randomize all** (default: groove through the second-to-last bar, fill on the last) or enable **Custom bar variation** + **Spread** per layer; **Export recipe** / **Import recipe** to share or reload loop presets (JSON, no samples); play or export a loop WAV.
 7. **Grains** (after slices exist) — Start the grain cloud, shape texture and space, use EQ if you like, then record the output to WAV when needed.
 8. **Oneshots** (after at least two slices) — Choose **Layer** or **Sequence**, edit clips, preview, **Export WAV**; open **Batch generate** for randomized multi-slice combinations, then download a ZIP (check rows to include). Use the floating **help** button (bottom-right) for full documentation.
 

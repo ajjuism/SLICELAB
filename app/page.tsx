@@ -5,6 +5,7 @@ import Image from 'next/image';
 import type { DetectionSettings, FadeSettings, NamingSettings } from './types';
 import { useAudioEngine } from './hooks/useAudioEngine';
 import { ProjectProvider, useProject } from './context/ProjectContext';
+import { LoopRecipeProvider } from './context/LoopRecipeContext';
 import { Topbar, type MainTab } from './components/Topbar';
 import { Sidebar } from './components/Sidebar';
 import { Waveform } from './components/Waveform';
@@ -56,6 +57,12 @@ function HomeInner() {
   }, [tab, engine.stopPlayback]); // stop slice/loop preview when opening Grain / Oneshots
 
   return (
+    <LoopRecipeProvider
+      slices={engine.slices}
+      loopPlaying={engine.loopPlaying}
+      onStopLoop={engine.stopLoop}
+      onStatus={engine.setStatusMessage}
+    >
     <>
     <div
       className="slicelab-desktop-only"
@@ -242,5 +249,6 @@ function HomeInner() {
       </div>
     </div>
     </>
+    </LoopRecipeProvider>
   );
 }

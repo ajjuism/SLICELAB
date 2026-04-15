@@ -255,7 +255,7 @@ function PanelLoop() {
         <h4>Transport & meter</h4>
         <ul>
           <li>
-            <strong>BPM</strong> — Quarter-note tempo (about 60–180). Bar length follows the chosen{' '}
+            <strong>BPM</strong> — Quarter-note tempo, entered as a number (60–180). Bar length follows the chosen{' '}
             <strong>time signature</strong> (e.g. 4/4 = four quarter-note beats per bar; 3/4 = three).
           </li>
           <li>
@@ -268,7 +268,7 @@ function PanelLoop() {
             can vary hits across bars (e.g. a fill on the last bar).
           </li>
           <li>
-            <strong>Swing</strong> — Delays odd-numbered steps slightly for a shuffle feel (0 = straight).
+            <strong>Swing</strong> — Slider (0–100%). Delays odd-numbered steps slightly for a shuffle feel (0 = straight).
           </li>
           <li>
             <strong>Trim to step</strong> — When on, each triggered slice only plays for roughly one step’s worth of
@@ -326,6 +326,15 @@ function PanelLoop() {
           <li>
             <strong>Download WAV</strong> — Renders the full mixed loop (all unmuted layers) to a WAV file for use outside
             the app.
+          </li>
+          <li>
+            <strong>Export recipe</strong> — Downloads a small JSON file (<code className="help-code-inline">slicelab-recipe.json</code>)
+            with transport, pool, and layer patterns (slice indices only—no audio). Share it as a preset or open it later.
+          </li>
+          <li>
+            <strong>Import recipe</strong> — Loads that JSON and applies it to your current project. After analyzing, slice
+            indices in the recipe must exist in your grid (missing indices become rests); you can import before analyzing
+            and then run <strong>Analyze</strong> to apply the pattern once slices exist.
           </li>
         </ul>
         <p className="help-muted" style={{ marginTop: 10, marginBottom: 0 }}>

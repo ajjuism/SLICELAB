@@ -59,3 +59,22 @@ export type TimeSignature =
   | '6/8'
   | '9/8'
   | '12/8';
+
+/** When custom bar variation is on: how bars differ from bar 1 after Random (multi-bar only). */
+export type LoopBarVariationMode = 'eachBarLight' | 'eachBarHeavy' | 'fullRandom';
+
+export interface LoopLayerRow {
+  pattern: (number | null)[];
+  muted: boolean;
+  /** 5–100: probability of a hit on each step when using Random / Randomize all. */
+  hitRate: number;
+  /** Semitones (−24…24): pitch-shift every hit on this layer (sampler-style; changes length vs step). */
+  pitchSemitones: number;
+  /**
+   * When false (default), Random repeats bar 1 through the second-to-last bar and only mutates the last bar.
+   * When true, Random uses `barVariationMode` instead.
+   */
+  barVariationEnabled: boolean;
+  /** Used when `barVariationEnabled` and Bars > 1. */
+  barVariationMode: LoopBarVariationMode;
+}
